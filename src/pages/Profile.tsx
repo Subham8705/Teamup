@@ -2,13 +2,26 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../config/firebase';
+import { toast } from 'react-hot-toast';
 import {
   User, Mail, Calendar, Edit3, Github, Linkedin, Globe, Code, 
-  UserPlus, Heart, Trash2, Pencil, ChevronRight, Loader2
+  UserPlus, Heart, Trash2, Pencil, ChevronRight, Loader2, Check, X
 } from 'lucide-react';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { v4 as uuidv4 } from 'uuid';
+
+interface CollaborationRequest {
+  id: string;
+  fromUserId: string;
+  fromUserName: string;
+  fromUserEmail: string;
+  toUserId: string;
+  toUserName: string;
+  status: 'pending' | 'accepted' | 'declined';
+  message: string;
+  createdAt: string;
+}
 
 const Profile: React.FC = () => {
   const { user } = useAuth();
@@ -16,6 +29,7 @@ const Profile: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editProjectId, setEditProjectId] = useState<string | null>(null);
+  const [collaborationRequests, setCollaborationRequests] = useState<CollaborationRequest[]>([]);
   const { register, handleSubmit, reset, setValue } = useForm();
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +79,30 @@ const Profile: React.FC = () => {
     initializeProfile();
   }, [uid]);
 
+  // Fetch collaboration requests
+  useEffect(() => {
+    if (!uid) return;
+
+    const fetchCollaborationRequests = async () => {
+      try {
+        const q = query(
+          collection(db, 'collaborationRequests'),
+          where('toUserId', '==', uid)
+        );
+        const querySnapshot = await getDocs(q);
+        const requests: CollaborationRequest[] = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as CollaborationRequest));
+        setCollaborationRequests(requests);
+      } catch (error) {
+        console.error('Error fetching collaboration requests:', error);
+      }
+    };
+
+    fetchCollaborationRequests();
+  }, [uid]);
+
   const handleSaveProfile = async (data: any) => {
     if (!uid) {
       setError('No user logged in');
@@ -82,9 +120,11 @@ const Profile: React.FC = () => {
       const updatedProfile = (await getDoc(docRef)).data();
       setProfileData(updatedProfile);
       setIsEditing(false);
+      toast.success('Profile updated successfully!');
     } catch (err) {
       console.error("Save error:", err);
       setError('Failed to save profile');
+      toast.error('Failed to save profile');
     } finally {
       setLoading(false);
     }
@@ -126,9 +166,11 @@ const Profile: React.FC = () => {
       setShowProjectForm(false);
       setEditProjectId(null);
       form.reset();
+      toast.success(editProjectId ? 'Project updated!' : 'Project added!');
     } catch (err) {
       console.error("Project error:", err);
       setError('Failed to save project');
+      toast.error('Failed to save project');
     } finally {
       setLoading(false);
     }
@@ -148,9 +190,11 @@ const Profile: React.FC = () => {
       });
       
       setProfileData((prev: any) => ({ ...prev, projects: currentProjects }));
+      toast.success('Project deleted!');
     } catch (err) {
       console.error("Delete error:", err);
       setError('Failed to delete project');
+      toast.error('Failed to delete project');
     } finally {
       setLoading(false);
     }
@@ -163,6 +207,33 @@ const Profile: React.FC = () => {
     setValue('github', project.github);
     setValue('link', project.link);
     setShowProjectForm(true);
+  };
+
+  const handleCollaborationResponse = async (requestId: string, status: 'accepted' | 'declined') => {
+    try {
+      const requestRef = doc(db, 'collaborationRequests', requestId);
+      await updateDoc(requestRef, { status });
+      
+      setCollaborationRequests(prev => 
+        prev.map(req => req.id === requestId ? { ...req, status } : req)
+      );
+      
+      toast.success(`Collaboration request ${status}!`);
+    } catch (error) {
+      console.error('Error updating collaboration request:', error);
+      toast.error('Failed to update request');
+    }
+  };
+
+  const handleDeleteRequest = async (requestId: string) => {
+    try {
+      await deleteDoc(doc(db, 'collaborationRequests', requestId));
+      setCollaborationRequests(prev => prev.filter(req => req.id !== requestId));
+      toast.success('Request deleted!');
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      toast.error('Failed to delete request');
+    }
   };
 
   const handleEditButtonClick = () => {
@@ -221,7 +292,7 @@ const Profile: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-white transition-colors duration-300">
       {/* Header Section */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -266,7 +337,12 @@ const Profile: React.FC = () => {
       {/* Tabs */}
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex space-x-6 overflow-x-auto py-4 hide-scrollbar">
-          {[{ id: 'overview', icon: User, label: 'Overview' }, { id: 'projects', icon: Code, label: 'Projects' }, { id: 'collab', icon: UserPlus, label: 'Collab' }, { id: 'about', icon: Heart, label: 'About' }].map(tab => (
+          {[
+            { id: 'overview', icon: User, label: 'Overview' }, 
+            { id: 'projects', icon: Code, label: 'Projects' }, 
+            { id: 'collab', icon: UserPlus, label: `Collab ${collaborationRequests.filter(r => r.status === 'pending').length > 0 ? `(${collaborationRequests.filter(r => r.status === 'pending').length})` : ''}` }, 
+            { id: 'about', icon: Heart, label: 'About' }
+          ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -292,7 +368,7 @@ const Profile: React.FC = () => {
             animate={{ opacity: 1 }}
             className="space-y-8"
           >
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
               <h3 className="text-xl font-semibold mb-4">Profile Summary</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
@@ -304,13 +380,13 @@ const Profile: React.FC = () => {
                   <div className="text-gray-500 dark:text-gray-400 mt-1">Skills</div>
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                  <div className="text-3xl font-bold text-purple-600">0</div>
+                  <div className="text-3xl font-bold text-purple-600">{collaborationRequests.filter(r => r.status === 'accepted').length}</div>
                   <div className="text-gray-500 dark:text-gray-400 mt-1">Collaborations</div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
               <h3 className="text-xl font-semibold mb-4">Skills</h3>
               <div className="flex flex-wrap gap-2">
                 {(profileData?.skills?.split(',') || []).map((s: string) => (
@@ -327,7 +403,7 @@ const Profile: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
               <h3 className="text-xl font-semibold mb-4">Social Links</h3>
               <ul className="space-y-3">
                 {profileData?.github && (
@@ -390,7 +466,7 @@ const Profile: React.FC = () => {
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 onSubmit={handleAddOrUpdateProject} 
-                className="space-y-4 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm mb-8"
+                className="space-y-4 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm mb-8 transition-colors duration-300"
               >
                 <h4 className="font-medium text-lg">{editProjectId ? 'Edit Project' : 'Add New Project'}</h4>
                 <input 
@@ -452,7 +528,7 @@ const Profile: React.FC = () => {
                   <motion.div 
                     key={project.id}
                     whileHover={{ y: -2 }}
-                    className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700"
+                    className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors duration-300"
                   >
                     <div className="flex flex-col md:flex-row md:justify-between">
                       <div className="flex-1">
@@ -503,7 +579,7 @@ const Profile: React.FC = () => {
                   </motion.div>
                 ))
               ) : (
-                <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm text-center">
+                <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-sm text-center transition-colors duration-300">
                   <Code className="w-12 h-12 mx-auto text-gray-400 mb-4" />
                   <h4 className="text-lg font-medium mb-2">No Projects Yet</h4>
                   <p className="text-gray-500 dark:text-gray-400 mb-4">
@@ -526,11 +602,91 @@ const Profile: React.FC = () => {
           </motion.div>
         )}
 
+        {activeTab === 'collab' && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="space-y-6"
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
+              <h3 className="text-xl font-semibold mb-4">Collaboration Requests</h3>
+              
+              {collaborationRequests.length > 0 ? (
+                <div className="space-y-4">
+                  {collaborationRequests.map((request) => (
+                    <motion.div
+                      key={request.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-colors duration-300"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h4 className="font-semibold text-gray-900 dark:text-white">{request.fromUserName}</h4>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              request.status === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
+                              request.status === 'accepted' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                              'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                            }`}>
+                              {request.status}
+                            </span>
+                          </div>
+                          <p className="text-gray-600 dark:text-gray-300 mb-2">{request.message}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            From: {request.fromUserEmail} • {new Date(request.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        
+                        <div className="flex space-x-2 ml-4">
+                          {request.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => handleCollaborationResponse(request.id, 'accepted')}
+                                className="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                                aria-label="Accept request"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleCollaborationResponse(request.id, 'declined')}
+                                className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                                aria-label="Decline request"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => handleDeleteRequest(request.id)}
+                            className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            aria-label="Delete request"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <UserPlus className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                  <h4 className="text-lg font-medium mb-2">No Collaboration Requests</h4>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    When people want to collaborate with you, their requests will appear here.
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {activeTab === 'about' && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300"
           >
             <h3 className="text-xl font-semibold mb-4">About Me</h3>
             {profileData?.about ? (
@@ -554,7 +710,7 @@ const Profile: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             onSubmit={handleSubmit(handleSaveProfile)} 
-            className="mt-6 space-y-4 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg"
+            className="mt-6 space-y-4 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors duration-300"
           >
             <h3 className="text-xl font-semibold mb-4">Edit Profile</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

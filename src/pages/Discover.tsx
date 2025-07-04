@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { collection, addDoc, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 import {
   MapPin,
   Code,
@@ -10,7 +12,8 @@ import {
   Linkedin,
   Globe,
   Users,
-  Pencil
+  Pencil,
+  UserPlus
 } from 'lucide-react';
 
 interface Developer {
@@ -24,9 +27,11 @@ interface Developer {
   linkedin?: string;
   portfolio?: string;
   joinedDate: string;
+  userId: string; // Add userId to track who posted
 }
 
 const Discover: React.FC = () => {
+  const { user, userProfile } = useAuth();
   const [developers, setDevelopers] = useState<Developer[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -42,19 +47,19 @@ const Discover: React.FC = () => {
   });
 
   useEffect(() => {
-    const fetchPosts = async () => {
-      const querySnapshot = await getDocs(collection(db, 'discoverposts'));
-      const posts: Developer[] = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as Omit<Developer, 'id'>),
-        skills: doc.data().skills || [],
-        projects: doc.data().projects || []
-      }));
-      setDevelopers(posts);
-    };
-
     fetchPosts();
   }, []);
+
+  const fetchPosts = async () => {
+    const querySnapshot = await getDocs(collection(db, 'discoverposts'));
+    const posts: Developer[] = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Developer, 'id'>),
+      skills: doc.data().skills || [],
+      projects: doc.data().projects || []
+    }));
+    setDevelopers(posts);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -62,6 +67,11 @@ const Discover: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      toast.error('Please login to post your profile');
+      return;
+    }
+
     const newPost = {
       name: formData.name,
       role: formData.role,
@@ -71,24 +81,63 @@ const Discover: React.FC = () => {
       github: formData.github,
       linkedin: formData.linkedin,
       portfolio: formData.portfolio,
+      userId: user.uid,
       joinedDate: formData.id ? developers.find(d => d.id === formData.id)?.joinedDate || new Date().toISOString() : new Date().toISOString()
     };
 
-    if (formData.id) {
-      await updateDoc(doc(db, 'discoverposts', formData.id), newPost);
-      setDevelopers(prev => prev.map(dev => dev.id === formData.id ? { ...dev, ...newPost } : dev));
-    } else {
-      const docRef = await addDoc(collection(db, 'discoverposts'), newPost);
-      setDevelopers(prev => [...prev, { id: docRef.id, ...newPost }]);
+    try {
+      if (formData.id) {
+        await updateDoc(doc(db, 'discoverposts', formData.id), newPost);
+        setDevelopers(prev => prev.map(dev => dev.id === formData.id ? { ...dev, ...newPost } : dev));
+        toast.success('Profile updated successfully!');
+      } else {
+        const docRef = await addDoc(collection(db, 'discoverposts'), newPost);
+        setDevelopers(prev => [...prev, { id: docRef.id, ...newPost }]);
+        toast.success('Profile posted successfully!');
+      }
+
+      setFormData({ id: '', name: '', role: '', location: '', skills: '', projects: '', github: '', linkedin: '', portfolio: '' });
+      setShowForm(false);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast.error('Failed to save profile');
+    }
+  };
+
+  const handleCollaborate = async (targetDev: Developer) => {
+    if (!user || !userProfile) {
+      toast.error('Please login to send collaboration requests');
+      return;
     }
 
-    setFormData({ id: '', name: '', role: '', location: '', skills: '', projects: '', github: '', linkedin: '', portfolio: '' });
-    setShowForm(false);
+    if (targetDev.userId === user.uid) {
+      toast.error('You cannot collaborate with yourself');
+      return;
+    }
+
+    try {
+      // Create collaboration request
+      await addDoc(collection(db, 'collaborationRequests'), {
+        fromUserId: user.uid,
+        fromUserName: userProfile.name || user.email,
+        fromUserEmail: user.email,
+        toUserId: targetDev.userId,
+        toUserName: targetDev.name,
+        status: 'pending',
+        message: `Hi ${targetDev.name}, I'd like to collaborate with you on a project!`,
+        createdAt: new Date().toISOString()
+      });
+
+      toast.success(`Collaboration request sent to ${targetDev.name}!`);
+    } catch (error) {
+      console.error('Error sending collaboration request:', error);
+      toast.error('Failed to send collaboration request');
+    }
   };
 
   const handleAddOrEditClick = () => {
-    // Check if user already has a post (you might want to use auth context to get current user)
-    const existingPost = developers.find(post => post.name === formData.name); // Replace with your auth logic
+    // Check if current user already has a post
+    const existingPost = developers.find(post => post.userId === user?.uid);
     if (existingPost) {
       setFormData({
         id: existingPost.id,
@@ -101,45 +150,144 @@ const Discover: React.FC = () => {
         linkedin: existingPost.linkedin || '',
         portfolio: existingPost.portfolio || ''
       });
+    } else {
+      // Pre-fill with user profile data if available
+      setFormData({
+        id: '',
+        name: userProfile?.name || user?.email?.split('@')[0] || '',
+        role: userProfile?.role || '',
+        location: '',
+        skills: userProfile?.skills || '',
+        projects: '',
+        github: userProfile?.github || '',
+        linkedin: userProfile?.linkedin || '',
+        portfolio: userProfile?.website || ''
+      });
     }
     setShowForm(true);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 transition-colors duration-300">
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Discover Collaborators</h1>
-          <button
-            onClick={handleAddOrEditClick}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
-          >
-            {formData.id ? 'Edit Your Profile' : 'Let People Know About You'}
-          </button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Discover Collaborators</h1>
+            <p className="text-gray-600 dark:text-gray-300 mt-1">Find amazing people to work with on your next project</p>
+          </div>
+          {user && (
+            <button
+              onClick={handleAddOrEditClick}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg font-medium"
+            >
+              {developers.find(d => d.userId === user.uid) ? 'Edit Your Profile' : 'Post Your Profile'}
+            </button>
+          )}
         </div>
 
         {showForm && (
-          <form onSubmit={handleSubmit} className="space-y-4 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
-            <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Your Name" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition" required />
-            <input type="text" name="role" value={formData.role} onChange={handleChange} placeholder="Your Role" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition" required />
-            <input type="text" name="location" value={formData.location} onChange={handleChange} placeholder="Location" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition" required />
-            <input type="text" name="skills" value={formData.skills} onChange={handleChange} placeholder="Skills (comma separated)" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition" required />
-            <input type="text" name="projects" value={formData.projects} onChange={handleChange} placeholder="Projects (comma separated)" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition" required />
-            <input type="url" name="github" value={formData.github} onChange={handleChange} placeholder="GitHub URL" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition" />
-            <input type="url" name="linkedin" value={formData.linkedin} onChange={handleChange} placeholder="LinkedIn URL" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition" />
-            <input type="url" name="portfolio" value={formData.portfolio} onChange={handleChange} placeholder="Portfolio URL" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition" />
-            <div className="flex space-x-3">
-              <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg flex-1">
-                {formData.id ? 'Update Profile' : 'Create Profile'}
-              </button>
-              <button type="button" onClick={() => setShowForm(false)} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg flex-1">
-                Cancel
-              </button>
-            </div>
-          </form>
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 mb-8 transition-colors duration-300"
+          >
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              {formData.id ? 'Edit Your Profile' : 'Post Your Profile'}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input 
+                  type="text" 
+                  name="name" 
+                  value={formData.name} 
+                  onChange={handleChange} 
+                  placeholder="Your Name" 
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
+                  required 
+                />
+                <input 
+                  type="text" 
+                  name="role" 
+                  value={formData.role} 
+                  onChange={handleChange} 
+                  placeholder="Your Role (e.g., Frontend Developer)" 
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
+                  required 
+                />
+              </div>
+              <input 
+                type="text" 
+                name="location" 
+                value={formData.location} 
+                onChange={handleChange} 
+                placeholder="Location (e.g., New York, Remote)" 
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
+                required 
+              />
+              <input 
+                type="text" 
+                name="skills" 
+                value={formData.skills} 
+                onChange={handleChange} 
+                placeholder="Skills (comma separated, e.g., React, Node.js, Python)" 
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
+                required 
+              />
+              <input 
+                type="text" 
+                name="projects" 
+                value={formData.projects} 
+                onChange={handleChange} 
+                placeholder="Notable Projects (comma separated)" 
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
+                required 
+              />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input 
+                  type="url" 
+                  name="github" 
+                  value={formData.github} 
+                  onChange={handleChange} 
+                  placeholder="GitHub URL (optional)" 
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
+                />
+                <input 
+                  type="url" 
+                  name="linkedin" 
+                  value={formData.linkedin} 
+                  onChange={handleChange} 
+                  placeholder="LinkedIn URL (optional)" 
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
+                />
+                <input 
+                  type="url" 
+                  name="portfolio" 
+                  value={formData.portfolio} 
+                  onChange={handleChange} 
+                  placeholder="Portfolio URL (optional)" 
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
+                />
+              </div>
+              <div className="flex space-x-3">
+                <button 
+                  type="submit" 
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg flex-1 font-medium"
+                >
+                  {formData.id ? 'Update Profile' : 'Post Profile'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowForm(false)} 
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg flex-1 font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </motion.div>
         )}
 
-        <div className="grid md:grid-cols-2 gap-6 mt-8">
+        <div className="grid md:grid-cols-2 gap-6">
           {developers.map((dev, index) => (
             <motion.div
               key={dev.id}
@@ -148,34 +296,47 @@ const Discover: React.FC = () => {
               transition={{ duration: 0.4, delay: index * 0.1 }}
               className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
             >
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start mb-4">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">{dev.name}</h2>
                   <p className="text-sm text-purple-600 dark:text-purple-400 font-medium">{dev.role}</p>
                 </div>
-                <button 
-                  onClick={() => {
-                    setFormData({
-                      id: dev.id,
-                      name: dev.name,
-                      role: dev.role,
-                      location: dev.location,
-                      skills: dev.skills.join(', '),
-                      projects: dev.projects.join(', '),
-                      github: dev.github || '',
-                      linkedin: dev.linkedin || '',
-                      portfolio: dev.portfolio || ''
-                    });
-                    setShowForm(true);
-                  }}
-                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                  aria-label="Edit profile"
-                >
-                  <Pencil className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400" />
-                </button>
+                <div className="flex space-x-2">
+                  {user?.uid === dev.userId && (
+                    <button 
+                      onClick={() => {
+                        setFormData({
+                          id: dev.id,
+                          name: dev.name,
+                          role: dev.role,
+                          location: dev.location,
+                          skills: dev.skills.join(', '),
+                          projects: dev.projects.join(', '),
+                          github: dev.github || '',
+                          linkedin: dev.linkedin || '',
+                          portfolio: dev.portfolio || ''
+                        });
+                        setShowForm(true);
+                      }}
+                      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      aria-label="Edit profile"
+                    >
+                      <Pencil className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400" />
+                    </button>
+                  )}
+                  {user && user.uid !== dev.userId && (
+                    <button 
+                      onClick={() => handleCollaborate(dev)}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
+                    >
+                      <UserPlus className="w-4 h-4 mr-1" />
+                      Collaborate
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mt-2 mb-4">
+              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
                 <MapPin className="w-4 h-4 mr-1 text-gray-400 dark:text-gray-500" />
                 {dev.location}
               </div>
@@ -229,13 +390,13 @@ const Discover: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex space-x-3 mt-4">
+              <div className="flex space-x-3 mb-4">
                 {dev.github && (
                   <a 
                     href={dev.github} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                     aria-label="GitHub profile"
                   >
                     <Github className="w-4 h-4 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white" />
@@ -246,7 +407,7 @@ const Discover: React.FC = () => {
                     href={dev.linkedin} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                     aria-label="LinkedIn profile"
                   >
                     <Linkedin className="w-4 h-4 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300" />
@@ -257,7 +418,7 @@ const Discover: React.FC = () => {
                     href={dev.portfolio} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                    className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                     aria-label="Portfolio website"
                   >
                     <Globe className="w-4 h-4 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300" />
@@ -265,7 +426,7 @@ const Discover: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-200 dark:border-gray-700">
                 <Calendar className="w-3 h-3 mr-1" />
                 <span>Joined {new Date(dev.joinedDate).toLocaleDateString()}</span>
               </div>
@@ -280,12 +441,14 @@ const Discover: React.FC = () => {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No profiles found</h3>
             <p className="text-gray-600 dark:text-gray-300 mb-4">Be the first to share your profile!</p>
-            <button
-              onClick={() => setShowForm(true)}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
-            >
-              Let People Know About You
-            </button>
+            {user && (
+              <button
+                onClick={() => setShowForm(true)}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg font-medium"
+              >
+                Post Your Profile
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -16,6 +16,7 @@ interface AuthContextType {
   register: (email: string, password: string, userData: any) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
+  updateProfileData: (updates: any) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -66,11 +67,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateProfileData = async (updates: any) => {
-  if (!user) return;
-  const userRef = doc(db, 'users', user.uid);
-  await updateDoc(userRef, updates);
-  setUserProfile((prev: any) => ({ ...prev, ...updates }));
-};
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, updates);
+    setUserProfile((prev: any) => ({ ...prev, ...updates }));
+  };
+
   const value = {
     user,
     userProfile,
