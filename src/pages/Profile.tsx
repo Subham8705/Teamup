@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../config/firebase';
 import {
   User, Mail, Calendar, Edit3, Github, Linkedin, Globe, Code, 
-  UserPlus, Heart, Trash2, Pencil, ChevronRight } from 'lucide-react';
+  UserPlus, Heart, Trash2, Pencil, ChevronRight, Loader2
+} from 'lucide-react';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,63 +18,142 @@ const Profile: React.FC = () => {
   const [editProjectId, setEditProjectId] = useState<string | null>(null);
   const { register, handleSubmit, reset, setValue } = useForm();
   const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const editFormRef = useRef<HTMLFormElement>(null);
   const uid = user?.uid;
 
+  // Initialize or fetch user profile
   useEffect(() => {
-    if (uid) {
-      const fetchProfile = async () => {
+    if (!uid) return;
+
+    const initializeProfile = async () => {
+      try {
+        setLoading(true);
         const docRef = doc(db, 'users', uid);
         const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setProfileData(docSnap.data());
-          reset(docSnap.data());
+
+        if (!docSnap.exists()) {
+          // Create new profile with default values
+          await setDoc(docRef, {
+            name: user.displayName || user.email?.split('@')[0] || 'New User',
+            email: user.email,
+            role: 'Developer',
+            skills: '',
+            about: '',
+            github: '',
+            linkedin: '',
+            website: '',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            projects: []
+          });
         }
-      };
-      fetchProfile();
-    }
+
+        // Load profile data
+        const profile = (await getDoc(docRef)).data();
+        setProfileData(profile);
+        reset(profile);
+      } catch (err) {
+        console.error("Profile error:", err);
+        setError('Failed to load profile');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeProfile();
   }, [uid]);
 
   const handleSaveProfile = async (data: any) => {
-    if (!uid) return;
-    const docRef = doc(db, 'users', uid);
-    await setDoc(docRef, data, { merge: true });
-    setProfileData(data);
-    setIsEditing(false);
+    if (!uid) {
+      setError('No user logged in');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const docRef = doc(db, 'users', uid);
+      await setDoc(docRef, { 
+        ...data,
+        updatedAt: new Date() 
+      }, { merge: true });
+      
+      const updatedProfile = (await getDoc(docRef)).data();
+      setProfileData(updatedProfile);
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Save error:", err);
+      setError('Failed to save profile');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddOrUpdateProject = async (e: any) => {
     e.preventDefault();
-    const form = e.target;
-    const title = form.title.value;
-    const description = form.description.value;
-    const github = form.github.value;
-    const link = form.link.value;
+    if (!uid) return;
 
-    const newProject = {
-      id: editProjectId || uuidv4(),
-      title,
-      description,
-      github,
-      link
-    };
+    try {
+      setLoading(true);
+      const form = e.target;
+      const newProject = {
+        id: editProjectId || uuidv4(),
+        title: form.title.value,
+        description: form.description.value,
+        github: form.github.value,
+        link: form.link.value,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
 
-    const updatedProjects = editProjectId
-      ? profileData.projects.map((proj: any) => (proj.id === editProjectId ? newProject : proj))
-      : [...(profileData.projects || []), newProject];
+      const docRef = doc(db, 'users', uid);
+      const docSnap = await getDoc(docRef);
+      const currentProjects = docSnap.data()?.projects || [];
 
-    const docRef = doc(db, 'users', uid);
-    await updateDoc(docRef, { projects: updatedProjects });
-    setProfileData((prev: any) => ({ ...prev, projects: updatedProjects }));
-    setShowProjectForm(false);
-    setEditProjectId(null);
-    form.reset();
+      const updatedProjects = editProjectId
+        ? currentProjects.map((proj: any) => 
+            proj.id === editProjectId ? { ...proj, ...newProject } : proj
+          )
+        : [...currentProjects, newProject];
+
+      await updateDoc(docRef, { 
+        projects: updatedProjects,
+        updatedAt: new Date() 
+      });
+      
+      setProfileData((prev: any) => ({ ...prev, projects: updatedProjects }));
+      setShowProjectForm(false);
+      setEditProjectId(null);
+      form.reset();
+    } catch (err) {
+      console.error("Project error:", err);
+      setError('Failed to save project');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteProject = async (id: string) => {
-    const updated = profileData.projects.filter((p: any) => p.id !== id);
-    const docRef = doc(db, 'users', uid);
-    await updateDoc(docRef, { projects: updated });
-    setProfileData((prev: any) => ({ ...prev, projects: updated }));
+    if (!uid) return;
+
+    try {
+      setLoading(true);
+      const docRef = doc(db, 'users', uid);
+      const currentProjects = profileData.projects.filter((p: any) => p.id !== id);
+      
+      await updateDoc(docRef, { 
+        projects: currentProjects,
+        updatedAt: new Date() 
+      });
+      
+      setProfileData((prev: any) => ({ ...prev, projects: currentProjects }));
+    } catch (err) {
+      console.error("Delete error:", err);
+      setError('Failed to delete project');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEditProject = (project: any) => {
@@ -85,6 +165,20 @@ const Profile: React.FC = () => {
     setShowProjectForm(true);
   };
 
+  const handleEditButtonClick = () => {
+    const willEdit = !isEditing;
+    setIsEditing(willEdit);
+    
+    if (willEdit && editFormRef.current) {
+      setTimeout(() => {
+        editFormRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }, 100);
+    }
+  };
+
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -93,6 +187,34 @@ const Profile: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-300">
             Please log in to view your profile.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && !profileData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="flex flex-col items-center">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mb-4" />
+          <p>Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="p-8 text-center max-w-md">
+          <h2 className="text-2xl font-semibold mb-4 text-red-500">Error</h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -116,17 +238,26 @@ const Profile: React.FC = () => {
                   <Mail className="w-4 h-4 mr-1" />{user.email}
                 </div>
                 <div className="flex items-center bg-purple-500/20 px-3 py-1 rounded-full">
-                  <Calendar className="w-4 h-4 mr-1" />Joined {new Date(user.metadata.creationTime || '').toLocaleDateString()}
+                  <Calendar className="w-4 h-4 mr-1" />
+                  Joined {profileData?.createdAt?.toDate 
+                    ? new Date(profileData.createdAt.toDate()).toLocaleDateString() 
+                    : 'Recently'}
                 </div>
               </div>
             </div>
             <motion.button 
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setIsEditing(!isEditing)} 
-              className="mt-4 md:mt-0 bg-white text-purple-700 rounded-full px-5 py-2 flex items-center shadow-md"
+              onClick={handleEditButtonClick}
+              disabled={loading}
+              className="mt-4 md:mt-0 bg-white text-purple-700 rounded-full px-5 py-2 flex items-center shadow-md disabled:opacity-50"
             >
-              <Edit3 className="w-4 h-4 mr-2" /> {isEditing ? 'Cancel' : 'Edit Profile'}
+              {loading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Edit3 className="w-4 h-4 mr-2" />
+              )}
+              {isEditing ? 'Cancel' : 'Edit Profile'}
             </motion.button>
           </div>
         </div>
@@ -139,7 +270,12 @@ const Profile: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 pb-2 px-1 transition-all duration-200 ${activeTab === tab.id ? 'text-purple-600 border-b-2 border-purple-600 font-medium' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              disabled={loading}
+              className={`flex items-center space-x-2 pb-2 px-1 transition-all duration-200 disabled:opacity-50 ${
+                activeTab === tab.id
+                  ? 'text-purple-600 border-b-2 border-purple-600 font-medium'
+                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
             >
               <tab.icon className="w-5 h-5" />
               <span className="whitespace-nowrap">{tab.label}</span>
@@ -178,13 +314,15 @@ const Profile: React.FC = () => {
               <h3 className="text-xl font-semibold mb-4">Skills</h3>
               <div className="flex flex-wrap gap-2">
                 {(profileData?.skills?.split(',') || []).map((s: string) => (
-                  <motion.span 
-                    whileHover={{ scale: 1.05 }}
-                    key={s} 
-                    className="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-sm"
-                  >
-                    {s.trim()}
-                  </motion.span>
+                  s.trim() && (
+                    <motion.span 
+                      whileHover={{ scale: 1.05 }}
+                      key={s} 
+                      className="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-sm"
+                    >
+                      {s.trim()}
+                    </motion.span>
+                  )
                 ))}
               </div>
             </div>
@@ -235,9 +373,14 @@ const Profile: React.FC = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => { setShowProjectForm(!showProjectForm); setEditProjectId(null); }} 
-                className="bg-purple-600 text-white px-4 py-2 rounded-full flex items-center shadow-md"
+                disabled={loading}
+                className="bg-purple-600 text-white px-4 py-2 rounded-full flex items-center shadow-md disabled:opacity-50"
               >
-                {showProjectForm ? 'Close' : 'Add Project +'}
+                {loading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  showProjectForm ? 'Close' : 'Add Project +'
+                )}
               </motion.button>
             </div>
             
@@ -255,6 +398,7 @@ const Profile: React.FC = () => {
                   placeholder="Project Title" 
                   className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
                   required 
+                  disabled={loading}
                 />
                 <textarea 
                   {...register('description')} 
@@ -262,32 +406,41 @@ const Profile: React.FC = () => {
                   rows={4}
                   className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
                   required 
+                  disabled={loading}
                 />
                 <input 
                   {...register('github')} 
                   placeholder="GitHub Link (https://...)" 
                   type="url"
                   className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                  disabled={loading}
                 />
                 <input 
                   {...register('link')} 
                   placeholder="Live Demo Link (https://...)" 
                   type="url"
                   className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                  disabled={loading}
                 />
                 <div className="flex justify-end space-x-3">
                   <button 
                     type="button" 
                     onClick={() => setShowProjectForm(false)}
-                    className="px-4 py-2 rounded-lg border text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="px-4 py-2 rounded-lg border text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+                    disabled={loading}
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit" 
-                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 shadow-md"
+                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 shadow-md disabled:opacity-50 flex items-center"
+                    disabled={loading}
                   >
-                    {editProjectId ? 'Update Project' : 'Add Project'}
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      editProjectId ? 'Update Project' : 'Add Project'
+                    )}
                   </button>
                 </div>
               </motion.form>
@@ -331,15 +484,17 @@ const Profile: React.FC = () => {
                       <div className="flex space-x-2 mt-4 md:mt-0">
                         <button 
                           onClick={() => handleEditProject(project)}
-                          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
                           aria-label="Edit project"
+                          disabled={loading}
                         >
                           <Pencil className="w-4 h-4 text-yellow-500" />
                         </button>
                         <button 
                           onClick={() => handleDeleteProject(project.id)}
-                          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
                           aria-label="Delete project"
+                          disabled={loading}
                         >
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </button>
@@ -356,9 +511,14 @@ const Profile: React.FC = () => {
                   </p>
                   <button 
                     onClick={() => setShowProjectForm(true)}
-                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 shadow-md"
+                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 shadow-md disabled:opacity-50"
+                    disabled={loading}
                   >
-                    Add Project
+                    {loading ? (
+                      <Loader2 className="w-4 h-4 mx-auto animate-spin" />
+                    ) : (
+                      'Add Project'
+                    )}
                   </button>
                 </div>
               )}
@@ -390,6 +550,7 @@ const Profile: React.FC = () => {
 
         {isEditing && (
           <motion.form 
+            ref={editFormRef}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             onSubmit={handleSubmit(handleSaveProfile)} 
@@ -403,6 +564,7 @@ const Profile: React.FC = () => {
                   {...register('name')} 
                   placeholder="Your name" 
                   className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                  disabled={loading}
                 />
               </div>
               <div>
@@ -411,6 +573,7 @@ const Profile: React.FC = () => {
                   {...register('role')} 
                   placeholder="Your role" 
                   className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -420,6 +583,7 @@ const Profile: React.FC = () => {
                 {...register('skills')} 
                 placeholder="JavaScript, React, Node.js" 
                 className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                disabled={loading}
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -430,6 +594,7 @@ const Profile: React.FC = () => {
                   placeholder="https://github.com/username" 
                   type="url"
                   className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                  disabled={loading}
                 />
               </div>
               <div>
@@ -439,6 +604,7 @@ const Profile: React.FC = () => {
                   placeholder="https://linkedin.com/in/username" 
                   type="url"
                   className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                  disabled={loading}
                 />
               </div>
               <div>
@@ -448,6 +614,7 @@ const Profile: React.FC = () => {
                   placeholder="https://yourwebsite.com" 
                   type="url"
                   className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -458,21 +625,31 @@ const Profile: React.FC = () => {
                 placeholder="Tell us about yourself..." 
                 rows={5}
                 className="w-full p-3 rounded-lg border dark:bg-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
+                disabled={loading}
               />
             </div>
             <div className="flex justify-end space-x-3 pt-2">
               <button 
                 type="button" 
                 onClick={() => setIsEditing(false)}
-                className="px-4 py-2 rounded-lg border text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="px-4 py-2 rounded-lg border text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+                disabled={loading}
               >
                 Cancel
               </button>
               <button 
                 type="submit" 
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 shadow-md"
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 shadow-md disabled:opacity-50 flex items-center"
+                disabled={loading}
               >
-                Save Changes
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
               </button>
             </div>
           </motion.form>
