@@ -26,11 +26,11 @@ const About: React.FC = () => {
       email: 'nikhil.pabbisetti2006@gmail.com'
     },
     {
-      name: 'Subham',
+      name: 'Subham Kumar Shee',
       role: 'Co-Founder & CTO',
       bio: 'AI/ML engineer and former Google software engineer. Believes in the power of collaboration to solve complex problems.',
-      image: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=300',
-      github: 'https://github.com/sarahchen',
+      image: 'https://res.cloudinary.com/dfc8a9imb/image/upload/v1751618651/subhamimg_jtwhma.jpg',
+      github: 'https://github.com/Subham8705/Teamup',
       linkedin: 'https://www.linkedin.com/in/subham-kumar-shee-221886328/',
       email: 'subhamkumarshee@gmail.com '
     }
