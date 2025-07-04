@@ -6,14 +6,7 @@ import {
   X, 
   Eye, 
   Calendar, 
-  Mail, 
-  MapPin, 
-  Code,
-  Github,
-  Linkedin,
-  Globe,
-  Heart,
-  Loader2
+  Mail, MapPin, Code, Github, Linkedin, Globe, Heart, Loader2, Users
 } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, getDoc, addDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
