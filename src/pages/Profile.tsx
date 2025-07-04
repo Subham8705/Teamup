@@ -5,7 +5,7 @@ import { db } from '../config/firebase';
 import { toast } from 'react-hot-toast';
 import {
   User, Mail, Calendar, Edit3, Github, Linkedin, Globe, Code, 
-  UserPlus, Heart, Trash2, Pencil, ChevronRight, Loader2, Check, X
+  UserPlus, Heart, Trash2, Pencil, ChevronRight, Loader2, Check, X, Eye
 } from 'lucide-react';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
@@ -23,6 +23,20 @@ interface CollaborationRequest {
   createdAt: string;
 }
 
+interface CollaborationMember {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  role?: string;
+  skills?: string;
+  github?: string;
+  linkedin?: string;
+  website?: string;
+  collaborationType: 'sent' | 'received'; // Whether this user sent or received the collaboration
+  startedAt: string;
+}
+
 const Profile: React.FC = () => {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -30,6 +44,9 @@ const Profile: React.FC = () => {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editProjectId, setEditProjectId] = useState<string | null>(null);
   const [collaborationRequests, setCollaborationRequests] = useState<CollaborationRequest[]>([]);
+  const [collaborationMembers, setCollaborationMembers] = useState<CollaborationMember[]>([]);
+  const [selectedMemberProfile, setSelectedMemberProfile] = useState<any>(null);
+  const [showMemberProfile, setShowMemberProfile] = useState(false);
   const { register, handleSubmit, reset, setValue } = useForm();
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -102,6 +119,89 @@ const Profile: React.FC = () => {
 
     fetchCollaborationRequests();
   }, [uid]);
+
+  // Fetch collaboration members (accepted collaborations)
+  useEffect(() => {
+    if (!uid) return;
+
+    const fetchCollaborationMembers = async () => {
+      try {
+        // Get accepted collaborations where current user is either sender or receiver
+        const sentQuery = query(
+          collection(db, 'collaborationRequests'),
+          where('fromUserId', '==', uid),
+          where('status', '==', 'accepted')
+        );
+        
+        const receivedQuery = query(
+          collection(db, 'collaborationRequests'),
+          where('toUserId', '==', uid),
+          where('status', '==', 'accepted')
+        );
+
+        const [sentSnapshot, receivedSnapshot] = await Promise.all([
+          getDocs(sentQuery),
+          getDocs(receivedQuery)
+        ]);
+
+        const members: CollaborationMember[] = [];
+
+        // Process sent collaborations (people who accepted our requests)
+        for (const doc of sentSnapshot.docs) {
+          const data = doc.data();
+          try {
+            const memberProfile = await getDoc(doc(db, 'users', data.toUserId));
+            const memberData = memberProfile.data();
+            members.push({
+              id: doc.id,
+              userId: data.toUserId,
+              name: data.toUserName,
+              email: memberData?.email || '',
+              role: memberData?.role || '',
+              skills: memberData?.skills || '',
+              github: memberData?.github || '',
+              linkedin: memberData?.linkedin || '',
+              website: memberData?.website || '',
+              collaborationType: 'sent',
+              startedAt: data.createdAt
+            });
+          } catch (error) {
+            console.error('Error fetching member profile:', error);
+          }
+        }
+
+        // Process received collaborations (people whose requests we accepted)
+        for (const doc of receivedSnapshot.docs) {
+          const data = doc.data();
+          try {
+            const memberProfile = await getDoc(doc(db, 'users', data.fromUserId));
+            const memberData = memberProfile.data();
+            members.push({
+              id: doc.id,
+              userId: data.fromUserId,
+              name: data.fromUserName,
+              email: data.fromUserEmail,
+              role: memberData?.role || '',
+              skills: memberData?.skills || '',
+              github: memberData?.github || '',
+              linkedin: memberData?.linkedin || '',
+              website: memberData?.website || '',
+              collaborationType: 'received',
+              startedAt: data.createdAt
+            });
+          } catch (error) {
+            console.error('Error fetching member profile:', error);
+          }
+        }
+
+        setCollaborationMembers(members);
+      } catch (error) {
+        console.error('Error fetching collaboration members:', error);
+      }
+    };
+
+    fetchCollaborationMembers();
+  }, [uid, collaborationRequests]); // Re-fetch when requests change
 
   const handleSaveProfile = async (data: any) => {
     if (!uid) {
@@ -233,6 +333,22 @@ const Profile: React.FC = () => {
     } catch (error) {
       console.error('Error deleting request:', error);
       toast.error('Failed to delete request');
+    }
+  };
+
+  const handleViewMemberProfile = async (member: CollaborationMember) => {
+    try {
+      const memberDoc = await getDoc(doc(db, 'users', member.userId));
+      if (memberDoc.exists()) {
+        setSelectedMemberProfile({
+          ...memberDoc.data(),
+          id: member.userId
+        });
+        setShowMemberProfile(true);
+      }
+    } catch (error) {
+      console.error('Error fetching member profile:', error);
+      toast.error('Failed to load member profile');
     }
   };
 
@@ -380,7 +496,7 @@ const Profile: React.FC = () => {
                   <div className="text-gray-500 dark:text-gray-400 mt-1">Skills</div>
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                  <div className="text-3xl font-bold text-purple-600">{collaborationRequests.filter(r => r.status === 'accepted').length}</div>
+                  <div className="text-3xl font-bold text-purple-600">{collaborationMembers.length}</div>
                   <div className="text-gray-500 dark:text-gray-400 mt-1">Collaborations</div>
                 </div>
               </div>
@@ -608,6 +724,7 @@ const Profile: React.FC = () => {
             animate={{ opacity: 1 }}
             className="space-y-6"
           >
+            {/* Collaboration Requests */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
               <h3 className="text-xl font-semibold mb-4">Collaboration Requests</h3>
               
@@ -675,6 +792,115 @@ const Profile: React.FC = () => {
                   <h4 className="text-lg font-medium mb-2">No Collaboration Requests</h4>
                   <p className="text-gray-500 dark:text-gray-400">
                     When people want to collaborate with you, their requests will appear here.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Collaboration Members */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
+              <h3 className="text-xl font-semibold mb-4">My Collaborators ({collaborationMembers.length})</h3>
+              
+              {collaborationMembers.length > 0 ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {collaborationMembers.map((member) => (
+                    <motion.div
+                      key={member.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-colors duration-300"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white">{member.name}</h4>
+                          <p className="text-sm text-purple-600 dark:text-purple-400">{member.role}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          member.collaborationType === 'sent' 
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' 
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                        }`}>
+                          {member.collaborationType === 'sent' ? 'You invited' : 'Invited you'}
+                        </span>
+                      </div>
+                      
+                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">{member.email}</p>
+                      
+                      {member.skills && (
+                        <div className="mb-3">
+                          <div className="flex flex-wrap gap-1">
+                            {member.skills.split(',').slice(0, 3).map((skill, idx) => (
+                              <span 
+                                key={idx}
+                                className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs"
+                              >
+                                {skill.trim()}
+                              </span>
+                            ))}
+                            {member.skills.split(',').length > 3 && (
+                              <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full text-xs">
+                                +{member.skills.split(',').length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center">
+                        <div className="flex space-x-2">
+                          {member.github && (
+                            <a 
+                              href={member.github} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            >
+                              <Github className="w-3 h-3 text-gray-600 dark:text-gray-400" />
+                            </a>
+                          )}
+                          {member.linkedin && (
+                            <a 
+                              href={member.linkedin} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            >
+                              <Linkedin className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                            </a>
+                          )}
+                          {member.website && (
+                            <a 
+                              href={member.website} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            >
+                              <Globe className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                            </a>
+                          )}
+                        </div>
+                        
+                        <button
+                          onClick={() => handleViewMemberProfile(member)}
+                          className="flex items-center text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View Profile
+                        </button>
+                      </div>
+                      
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Collaborating since {new Date(member.startedAt).toLocaleDateString()}
+                      </p>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                  <h4 className="text-lg font-medium mb-2">No Collaborators Yet</h4>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    When you accept collaboration requests or others accept yours, they'll appear here.
                   </p>
                 </div>
               )}
@@ -811,6 +1037,145 @@ const Profile: React.FC = () => {
           </motion.form>
         )}
       </div>
+
+      {/* Member Profile Modal */}
+      {showMemberProfile && selectedMemberProfile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-colors duration-300"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {selectedMemberProfile.name}'s Profile
+                </h2>
+                <button
+                  onClick={() => setShowMemberProfile(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Basic Info</h3>
+                  <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                    <p><strong>Role:</strong> {selectedMemberProfile.role || 'Not specified'}</p>
+                    <p><strong>Email:</strong> {selectedMemberProfile.email}</p>
+                    <p><strong>Joined:</strong> {selectedMemberProfile.createdAt?.toDate ? new Date(selectedMemberProfile.createdAt.toDate()).toLocaleDateString() : 'Recently'}</p>
+                  </div>
+                </div>
+
+                {selectedMemberProfile.skills && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Skills</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedMemberProfile.skills.split(',').map((skill: string, idx: number) => (
+                        <span 
+                          key={idx}
+                          className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm"
+                        >
+                          {skill.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedMemberProfile.about && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">About</h3>
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                      <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                        {selectedMemberProfile.about}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {selectedMemberProfile.projects && selectedMemberProfile.projects.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Projects</h3>
+                    <div className="space-y-3">
+                      {selectedMemberProfile.projects.map((project: any, idx: number) => (
+                        <div key={idx} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                          <h4 className="font-semibold text-gray-900 dark:text-white">{project.title}</h4>
+                          <p className="text-gray-600 dark:text-gray-300 text-sm mt-1">{project.description}</p>
+                          <div className="flex space-x-2 mt-2">
+                            {project.github && (
+                              <a 
+                                href={project.github} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                GitHub
+                              </a>
+                            )}
+                            {project.link && (
+                              <a 
+                                href={project.link} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                Live Demo
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Social Links</h3>
+                  <div className="flex space-x-4">
+                    {selectedMemberProfile.github && (
+                      <a 
+                        href={selectedMemberProfile.github} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        <Github className="w-4 h-4 mr-1" />
+                        GitHub
+                      </a>
+                    )}
+                    {selectedMemberProfile.linkedin && (
+                      <a 
+                        href={selectedMemberProfile.linkedin} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        <Linkedin className="w-4 h-4 mr-1" />
+                        LinkedIn
+                      </a>
+                    )}
+                    {selectedMemberProfile.website && (
+                      <a 
+                        href={selectedMemberProfile.website} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        <Globe className="w-4 h-4 mr-1" />
+                        Website
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
