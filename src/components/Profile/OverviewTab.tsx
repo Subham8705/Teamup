@@ -1,0 +1,115 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Github, Linkedin, Globe, ChevronRight } from 'lucide-react';
+
+interface OverviewTabProps {
+  profileData: any;
+}
+
+const OverviewTab: React.FC<OverviewTabProps> = ({ profileData }) => {
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-8"
+    >
+      {/* Profile Summary */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
+        <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Profile Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+            <div className="text-3xl font-bold text-purple-600">{profileData?.projects?.length || 0}</div>
+            <div className="text-gray-500 dark:text-gray-400 mt-1">Projects</div>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+            <div className="text-3xl font-bold text-purple-600">
+              {(profileData?.skills?.split(',') || []).filter((s: string) => s.trim()).length}
+            </div>
+            <div className="text-gray-500 dark:text-gray-400 mt-1">Skills</div>
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+            <div className="text-3xl font-bold text-purple-600">
+              {profileData?.collaborators?.length || 0}
+            </div>
+            <div className="text-gray-500 dark:text-gray-400 mt-1">Collaborations</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Skills */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
+        <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Skills</h3>
+        <div className="flex flex-wrap gap-2">
+          {(profileData?.skills?.split(',') || []).map((skill: string) => (
+            skill.trim() && (
+              <motion.span 
+                whileHover={{ scale: 1.05 }}
+                key={skill} 
+                className="bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 px-3 py-1 rounded-full text-sm"
+              >
+                {skill.trim()}
+              </motion.span>
+            )
+          ))}
+          {(!profileData?.skills || profileData.skills.trim() === '') && (
+            <span className="text-gray-500 dark:text-gray-400 text-sm">No skills added yet</span>
+          )}
+        </div>
+      </div>
+
+      {/* Social Links */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
+        <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Social Links</h3>
+        <ul className="space-y-3">
+          {profileData?.github && (
+            <motion.li whileHover={{ x: 5 }}>
+              <a 
+                href={profileData.github} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center text-blue-500 hover:text-blue-600 transition-colors"
+              >
+                <Github className="w-5 h-5 mr-3" />
+                <span>GitHub Profile</span>
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </a>
+            </motion.li>
+          )}
+          {profileData?.linkedin && (
+            <motion.li whileHover={{ x: 5 }}>
+              <a 
+                href={profileData.linkedin} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center text-blue-500 hover:text-blue-600 transition-colors"
+              >
+                <Linkedin className="w-5 h-5 mr-3" />
+                <span>LinkedIn Profile</span>
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </a>
+            </motion.li>
+          )}
+          {profileData?.website && (
+            <motion.li whileHover={{ x: 5 }}>
+              <a 
+                href={profileData.website} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center text-blue-500 hover:text-blue-600 transition-colors"
+              >
+                <Globe className="w-5 h-5 mr-3" />
+                <span>Personal Website</span>
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </a>
+            </motion.li>
+          )}
+          {!profileData?.github && !profileData?.linkedin && !profileData?.website && (
+            <span className="text-gray-500 dark:text-gray-400 text-sm">No social links added yet</span>
+          )}
+        </ul>
+      </div>
+    </motion.div>
+  );
+};
+
+export default OverviewTab;
