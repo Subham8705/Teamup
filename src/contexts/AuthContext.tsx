@@ -7,7 +7,7 @@ import {
   onAuthStateChanged 
 } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
@@ -65,6 +65,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signOut(auth);
   };
 
+  const updateProfileData = async (updates: any) => {
+  if (!user) return;
+  const userRef = doc(db, 'users', user.uid);
+  await updateDoc(userRef, updates);
+  setUserProfile((prev: any) => ({ ...prev, ...updates }));
+};
   const value = {
     user,
     userProfile,
@@ -72,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     register,
     logout,
     loading,
+    updateProfileData,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
