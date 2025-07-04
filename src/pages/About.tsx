@@ -17,31 +17,22 @@ import {
 const About: React.FC = () => {
   const founders = [
     {
-      name: 'Alex Johnson',
+      name: 'Nikhil Pabbisetti',
       role: 'Co-Founder & CEO',
-      bio: 'Full-stack developer with 5+ years experience. Passionate about building platforms that connect creative minds.',
-      image: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=300',
-      github: 'https://github.com/alexjohnson',
-      linkedin: 'https://linkedin.com/in/alexjohnson',
-      email: 'alex@teamup.com'
+      bio: 'Full-stack developer with 1+ years experience. Passionate about building platforms that connect creative minds.',
+      image: 'https://res.cloudinary.com/dfc8a9imb/image/upload/c_crop,w_320,h_400,g_auto/v1751541568/profile_xzc4h2.jpg',
+      github: 'https://github.com/Nikhil-p570',
+      linkedin: 'https://www.linkedin.com/in/nikhil-pabbisetti/',
+      email: 'nikhil.pabbisetti2006@gmail.com'
     },
     {
-      name: 'Sarah Chen',
+      name: 'Subham',
       role: 'Co-Founder & CTO',
       bio: 'AI/ML engineer and former Google software engineer. Believes in the power of collaboration to solve complex problems.',
       image: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=300',
       github: 'https://github.com/sarahchen',
-      linkedin: 'https://linkedin.com/in/sarahchen',
-      email: 'sarah@teamup.com'
-    },
-    {
-      name: 'Marcus Rodriguez',
-      role: 'Co-Founder & CPO',
-      bio: 'Product designer with a background in UX research. Focused on creating intuitive experiences for developers.',
-      image: 'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?auto=compress&cs=tinysrgb&w=300',
-      github: 'https://github.com/marcusrodriguez',
-      linkedin: 'https://linkedin.com/in/marcusrodriguez',
-      email: 'marcus@teamup.com'
+      linkedin: 'https://www.linkedin.com/in/subham-kumar-shee-221886328/',
+      email: 'subhamkumarshee@gmail.com '
     }
   ];
 
@@ -129,7 +120,7 @@ const About: React.FC = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 bg-white dark:bg-gray-900 transition-colors duration-300">
+      {/* <section className="py-20 bg-white dark:bg-gray-900 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Our Impact</h2>
@@ -154,7 +145,7 @@ const About: React.FC = () => {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Founders Section */}
       <section className="py-20 bg-gray-50 dark:bg-gray-800 transition-colors duration-300">
@@ -166,7 +157,7 @@ const About: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 gap-40">
             {founders.map((founder, index) => (
               <motion.div
                 key={index}
