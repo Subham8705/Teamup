@@ -1,8 +1,9 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { ChatProvider } from './contexts/ChatContext';
 import Navbar from './components/Layout/Navbar';
 import ProtectedRoute from './components/Layout/ProtectedRoute';
 import Home from './pages/Home';
@@ -16,6 +17,7 @@ import Profile from './pages/Profile';
 import Courses from './pages/Courses';
 import About from './pages/About';
 import Discover from './pages/Discover';
+import AuthWrapper from './components/Auth/AuthWrapper';
 
 function App() {
   return (
@@ -41,14 +43,8 @@ function App() {
                 <Route path="/courses" element={<Courses />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/discover" element={<Discover />} />
-                <Route
-                  path="/chat"
-                  element={
-                    <ProtectedRoute>
-                      <Chat />
-                    </ProtectedRoute>
-                  }
-                />
+                
+                {/* Protected Routes */}
                 <Route
                   path="/profile"
                   element={
@@ -56,6 +52,26 @@ function App() {
                       <Profile />
                     </ProtectedRoute>
                   }
+                />
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute>
+                      <ChatProvider>
+                        <Chat />
+                      </ChatProvider>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                {/* Auth wrapper route (from the chat app) */}
+                <Route 
+                  path="/auth" 
+                  element={
+                    <ProtectedRoute inverse>
+                      <AuthWrapper />
+                    </ProtectedRoute>
+                  } 
                 />
               </Routes>
             </main>
