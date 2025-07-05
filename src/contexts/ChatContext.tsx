@@ -15,6 +15,7 @@ interface ChatContextType {
   setSelectedChat: (chatId: string | null) => void;
   currentUser: any;
   startChat: (targetUser: User) => Promise<void>;
+  startTeamChat: (teamId: string, teamName: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -32,7 +33,28 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     // Create chat document if it doesn't exist
     await setDoc(chatRef, {
       id: chatId,
+      type: 'direct',
       members: [user.uid, targetUser.id],
+      memberNames: [user.displayName || user.email, targetUser.name],
+      lastMessage: '',
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    
+    setSelectedChat(chatId);
+  };
+
+  const startTeamChat = async (teamId: string, teamName: string) => {
+    if (!user) return;
+    
+    const chatId = `team_${teamId}`;
+    const chatRef = doc(db, 'chats', chatId);
+    
+    // Create team chat document if it doesn't exist
+    await setDoc(chatRef, {
+      id: chatId,
+      type: 'team',
+      teamId: teamId,
+      teamName: teamName,
       lastMessage: '',
       updatedAt: serverTimestamp()
     }, { merge: true });
@@ -42,7 +64,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <ChatContext.Provider
-      value={{ selectedChat, setSelectedChat, currentUser: user, startChat }}
+      value={{ selectedChat, setSelectedChat, currentUser: user, startChat, startTeamChat }}
     >
       {children}
     </ChatContext.Provider>

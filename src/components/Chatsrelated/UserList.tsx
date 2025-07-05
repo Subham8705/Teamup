@@ -26,6 +26,7 @@ const UserList: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [collaborators, setCollaborators] = useState<Set<string>>(new Set());
+  const [teamMembers, setTeamMembers] = useState<Set<string>>(new Set());
   const { currentUser, startChat } = useChatContext();
 
   const handleSearch = async () => {
@@ -123,9 +124,38 @@ const UserList: React.FC = () => {
     }
   };
 
+  const loadTeamMembers = async () => {
+    if (!currentUser) return;
+
+    try {
+      // Get all teams where user is a member
+      const teamsQuery = query(
+        collection(db, 'teams'),
+        where('members', 'array-contains', currentUser.uid)
+      );
+      
+      const teamsSnapshot = await getDocs(teamsQuery);
+      const allTeamMemberIds = new Set<string>();
+
+      teamsSnapshot.docs.forEach(doc => {
+        const teamData = doc.data();
+        teamData.members.forEach((memberId: string) => {
+          if (memberId !== currentUser.uid) {
+            allTeamMemberIds.add(memberId);
+          }
+        });
+      });
+
+      setTeamMembers(allTeamMemberIds);
+    } catch (error) {
+      console.error('Error loading team members:', error);
+    }
+  };
+
   useEffect(() => {
     if (currentUser) {
       loadCollaborators();
+      loadTeamMembers();
     }
   }, [currentUser]);
 
@@ -144,17 +174,36 @@ const UserList: React.FC = () => {
       return true;
     }
     
-    // If user has private profile, only collaborators can message
+    // If user has private profile, only collaborators and team members can message
     if (user.profileVisibility === 'private') {
-      return collaborators.has(user.id);
+      return collaborators.has(user.id) || teamMembers.has(user.id);
     }
     
     return false;
   };
 
+  const getRelationshipLabel = (user: User) => {
+    const isCollaborator = collaborators.has(user.id);
+    const isTeamMember = teamMembers.has(user.id);
+    
+    if (isCollaborator && isTeamMember) {
+      return 'Collaborator & Teammate';
+    } else if (isCollaborator) {
+      return 'Collaborator';
+    } else if (isTeamMember) {
+      return 'Teammate';
+    }
+    return null;
+  };
+
   const handleStartChat = (user: User) => {
     if (!canMessageUser(user)) {
-      toast.error(`${user.name} has a private profile. You need to collaborate with them first to send messages.`);
+      const isTeamMember = teamMembers.has(user.id);
+      if (isTeamMember) {
+        toast.error(`${user.name} has a private profile, but you can message them through your team chat.`);
+      } else {
+        toast.error(`${user.name} has a private profile. You need to collaborate with them first to send messages.`);
+      }
       return;
     }
     
@@ -170,7 +219,7 @@ const UserList: React.FC = () => {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search users by name..."
+            placeholder="Search users by username..."
             className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           />
         </div>
@@ -192,14 +241,14 @@ const UserList: React.FC = () => {
               </p>
               {search.trim() && (
                 <p className="text-xs text-gray-400 mt-2">
-                  Try searching for someone's name to start a conversation
+                  Try searching for someone's username to start a conversation
                 </p>
               )}
             </div>
           ) : (
             users.map((user) => {
               const canMessage = canMessageUser(user);
-              const isCollaborator = collaborators.has(user.id);
+              const relationshipLabel = getRelationshipLabel(user);
               
               return (
                 <div
@@ -228,9 +277,9 @@ const UserList: React.FC = () => {
                       <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                         {user.name}
                       </p>
-                      {isCollaborator && (
+                      {relationshipLabel && (
                         <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
-                          Collaborator
+                          {relationshipLabel}
                         </span>
                       )}
                     </div>
@@ -239,7 +288,10 @@ const UserList: React.FC = () => {
                     </p>
                     {!canMessage && (
                       <p className="text-xs text-orange-600 dark:text-orange-400">
-                        Private profile - collaborate first
+                        {teamMembers.has(user.id) 
+                          ? 'Private profile - use team chat'
+                          : 'Private profile - collaborate first'
+                        }
                       </p>
                     )}
                   </div>

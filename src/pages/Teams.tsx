@@ -456,6 +456,45 @@ const Teams: React.FC = () => {
     }
   };
 
+  const handleRemoveMember = async (memberId: string) => {
+    if (!selectedTeam || !user) return;
+
+    if (!confirm('Are you sure you want to remove this member?')) return;
+
+    try {
+      const teamRef = doc(db, 'teams', selectedTeam.id);
+      const teamDoc = await getDoc(teamRef);
+      
+      if (teamDoc.exists()) {
+        const teamData = teamDoc.data() as Team;
+        const updatedMembers = teamData.members.filter(id => id !== memberId);
+        const newMemberCount = updatedMembers.length;
+        const newStatus = newMemberCount < teamData.maxMembers ? 'Open' : teamData.status;
+
+        await updateDoc(teamRef, {
+          members: updatedMembers,
+          currentMembers: newMemberCount,
+          status: newStatus,
+          lastActivity: serverTimestamp()
+        });
+
+        // Update selected team state
+        setSelectedTeam(prev => prev ? {
+          ...prev,
+          members: updatedMembers,
+          currentMembers: newMemberCount,
+          status: newStatus
+        } : null);
+      }
+
+      toast.success('Member removed successfully');
+      fetchTeams();
+    } catch (error) {
+      console.error('Error removing member:', error);
+      toast.error('Failed to remove member');
+    }
+  };
+
   const handleLeaveTeam = async (teamId: string) => {
     if (!user) return;
 
@@ -636,7 +675,7 @@ const Teams: React.FC = () => {
         onClose={() => setShowManageModal(false)}
         team={selectedTeam}
         onInviteUser={handleInviteUser}
-        onRemoveMember={(memberId) => console.log('Remove member:', memberId)}
+        onRemoveMember={handleRemoveMember}
         loading={loading}
       />
     </div>

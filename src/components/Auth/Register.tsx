@@ -5,6 +5,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
 import { UserPlus, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 
 interface RegisterForm {
   name: string;
@@ -24,12 +26,37 @@ const Register: React.FC = () => {
     handleSubmit,
     formState: { errors, isSubmitting },
     watch,
+    setError,
   } = useForm<RegisterForm>();
 
   const password = watch('password');
 
+  const checkUsernameUnique = async (username: string): Promise<boolean> => {
+    try {
+      const usersQuery = query(
+        collection(db, 'users'),
+        where('name', '==', username)
+      );
+      const snapshot = await getDocs(usersQuery);
+      return snapshot.empty; // Returns true if username is unique
+    } catch (error) {
+      console.error('Error checking username:', error);
+      return false;
+    }
+  };
+
   const onSubmit = async (data: RegisterForm) => {
     try {
+      // Check if username is unique
+      const isUsernameUnique = await checkUsernameUnique(data.name);
+      if (!isUsernameUnique) {
+        setError('name', { 
+          type: 'manual', 
+          message: 'This username is already taken. Please choose a different one.' 
+        });
+        return;
+      }
+
       await registerUser(data.email, data.password, {
         name: data.name,
         role: data.role,
@@ -40,6 +67,7 @@ const Register: React.FC = () => {
         linkedin: '',
         website: '',
         profileImage: '',    // if you add one in future
+        profileVisibility: 'public', // Default to public profile
       });
       toast.success('Account created successfully!');
       navigate('/');
@@ -63,17 +91,28 @@ const Register: React.FC = () => {
           <div className="space-y-4">
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username (must be unique)</label>
               <div className="mt-1 relative">
                 <input
-                  {...register('name', { required: 'Name is required' })}
+                  {...register('name', { 
+                    required: 'Username is required',
+                    minLength: { value: 3, message: 'Username must be at least 3 characters' },
+                    maxLength: { value: 20, message: 'Username must be less than 20 characters' },
+                    pattern: {
+                      value: /^[a-zA-Z0-9_-]+$/,
+                      message: 'Username can only contain letters, numbers, underscores, and hyphens'
+                    }
+                  })}
                   type="text"
                   className="w-full px-3 py-3 pl-10 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
-                  placeholder="Enter your full name"
+                  placeholder="Choose a unique username"
                 />
                 <User className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
               </div>
               {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                This will be your unique identifier that others can use to find and collaborate with you.
+              </p>
             </div>
 
             {/* Email */}
@@ -104,8 +143,11 @@ const Register: React.FC = () => {
                 <option value="">Select your role</option>
                 <option value="student">Student</option>
                 <option value="developer">Developer</option>
-                <option value="hacker">Hacker</option>
-                <option value="learner">Learner</option>
+                <option value="designer">Designer</option>
+                <option value="product manager">Product Manager</option>
+                <option value="entrepreneur">Entrepreneur</option>
+                <option value="researcher">Researcher</option>
+                <option value="other">Other</option>
               </select>
               {errors.role && <p className="text-sm text-red-500">{errors.role.message}</p>}
             </div>
@@ -117,7 +159,7 @@ const Register: React.FC = () => {
                 {...register('skills', { required: 'Skills are required' })}
                 type="text"
                 className="w-full px-3 py-3 border rounded-lg dark:bg-gray-800 dark:text-white dark:border-gray-600"
-                placeholder="e.g., JavaScript, React, Python"
+                placeholder="e.g., JavaScript, React, Python, UI/UX"
               />
               {errors.skills && <p className="text-sm text-red-500">{errors.skills.message}</p>}
             </div>
@@ -166,7 +208,7 @@ const Register: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full mt-4 py-3 text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg"
+            className="w-full mt-4 py-3 text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg disabled:opacity-50"
           >
             {isSubmitting ? 'Creating account...' : 'Create Account'}
           </button>
