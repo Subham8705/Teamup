@@ -36,11 +36,46 @@ interface Message {
 
 const ChatPage: React.FC = () => {
   const { user, logout } = useAuth();
-  const { selectedChat } = useChatContext();
+  const { selectedChat, setSelectedChat } = useChatContext();
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState('');
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Check for URL parameters to auto-start chat
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetUserId = urlParams.get('user');
+    const targetUserName = urlParams.get('name');
+    
+    if (targetUserId && user) {
+      startChatWithUser(targetUserId, targetUserName || 'User');
+    }
+  }, [user]);
+
+  const startChatWithUser = async (targetUserId: string, targetUserName: string) => {
+    if (!user) return;
+    
+    try {
+      const chatId = [user.uid, targetUserId].sort().join('_');
+      const chatRef = doc(db, 'chats', chatId);
+      
+      // Create chat document if it doesn't exist
+      await setDoc(chatRef, {
+        id: chatId,
+        members: [user.uid, targetUserId],
+        lastMessage: '',
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      
+      setSelectedChat(chatId);
+      
+      // Clear URL parameters
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (error) {
+      console.error('Error starting chat:', error);
+    }
+  };
 
   useEffect(() => {
     if (selectedChat) {
@@ -111,8 +146,8 @@ const ChatPage: React.FC = () => {
               <MessageCircle className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ChatApp</h1>
-              <p className="text-gray-600 dark:text-gray-400">Welcome back, {user?.name}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">TeamUp Chat</h1>
+              <p className="text-gray-600 dark:text-gray-400">Connect with your collaborators</p>
             </div>
           </div>
           <button
@@ -152,7 +187,7 @@ const ChatPage: React.FC = () => {
                     No Chat Selected
                   </h3>
                   <p className="text-gray-500 dark:text-gray-400">
-                    Search for people to start a conversation
+                    Search for people to start a conversation or select an existing chat
                   </p>
                 </div>
               </div>

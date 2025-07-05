@@ -6,7 +6,7 @@ import {
   X, 
   Eye, 
   Calendar, 
-  Mail, MapPin, Code, Github, Linkedin, Globe, Heart, Loader2, Users, UserMinus
+  Mail, MapPin, Code, Github, Linkedin, Globe, Heart, Loader2, Users, UserMinus, MessageCircle
 } from 'lucide-react';
 import { collection, query, where, getDocs, updateDoc, doc, getDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -144,6 +144,21 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
       toast.error('Failed to end collaboration');
     } finally {
       setActionLoading(prev => ({ ...prev, [collaborationId]: false }));
+    }
+  };
+
+  const handleMessageCollaborator = async (collaborator: any) => {
+    if (!user) {
+      toast.error('Please login to send messages');
+      return;
+    }
+
+    try {
+      // Navigate to chat with the specific collaborator
+      window.location.href = `/chat?user=${collaborator.partnerId}&name=${encodeURIComponent(collaborator.partnerName)}`;
+    } catch (error) {
+      console.error('Error starting chat:', error);
+      toast.error('Failed to start chat');
     }
   };
 
@@ -327,13 +342,22 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
                     <Calendar className="w-3 h-3 mr-1" />
                     Since {new Date(collab.respondedAt || collab.createdAt).toLocaleDateString()}
                   </div>
-                  <button
-                    onClick={() => viewProfile(collab.partnerId)}
-                    className="text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 text-sm font-medium flex items-center"
-                  >
-                    <Eye className="w-4 h-4 mr-1" />
-                    View Profile
-                  </button>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleMessageCollaborator(collab)}
+                      className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium flex items-center"
+                    >
+                      <MessageCircle className="w-4 h-4 mr-1" />
+                      Message
+                    </button>
+                    <button
+                      onClick={() => viewProfile(collab.partnerId)}
+                      className="text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 text-sm font-medium flex items-center"
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      View Profile
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             ))}

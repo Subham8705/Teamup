@@ -15,7 +15,11 @@ import {
   Pencil,
   UserPlus,
   UserCheck,
-  Loader2
+  Loader2,
+  Search,
+  Filter,
+  MessageCircle,
+  X
 } from 'lucide-react';
 
 interface Developer {
@@ -36,12 +40,27 @@ interface CollaborationStatus {
   [key: string]: 'none' | 'pending' | 'accepted' | 'sent';
 }
 
+interface SearchFilters {
+  username: string;
+  location: string;
+  skills: string;
+  role: string;
+}
+
 const Discover: React.FC = () => {
   const { user, userProfile } = useAuth();
   const [developers, setDevelopers] = useState<Developer[]>([]);
+  const [filteredDevelopers, setFilteredDevelopers] = useState<Developer[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [collaborationStatus, setCollaborationStatus] = useState<CollaborationStatus>({});
   const [loadingCollabs, setLoadingCollabs] = useState<{ [key: string]: boolean }>({});
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    username: '',
+    location: '',
+    skills: '',
+    role: ''
+  });
   const [formData, setFormData] = useState({
     id: '',
     name: '',
@@ -54,6 +73,9 @@ const Discover: React.FC = () => {
     portfolio: ''
   });
 
+  const commonRoles = ['Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'UI/UX Designer', 'Data Scientist', 'DevOps Engineer', 'Mobile Developer', 'Product Manager'];
+  const commonSkills = ['React', 'Node.js', 'Python', 'JavaScript', 'TypeScript', 'Java', 'C++', 'UI/UX', 'Machine Learning', 'AWS', 'Docker', 'MongoDB'];
+
   useEffect(() => {
     fetchPosts();
   }, []);
@@ -63,6 +85,10 @@ const Discover: React.FC = () => {
       fetchCollaborationStatuses();
     }
   }, [user, developers]);
+
+  useEffect(() => {
+    filterDevelopers();
+  }, [developers, searchFilters]);
 
   const fetchPosts = async () => {
     const querySnapshot = await getDocs(collection(db, 'discoverposts'));
@@ -80,7 +106,6 @@ const Discover: React.FC = () => {
 
     const statuses: CollaborationStatus = {};
 
-    // Check for existing collaboration requests and accepted collaborations
     const sentQuery = query(
       collection(db, 'collaborationRequests'),
       where('fromUserId', '==', user.uid)
@@ -96,7 +121,6 @@ const Discover: React.FC = () => {
       getDocs(receivedQuery)
     ]);
 
-    // Process sent requests
     sentSnapshot.docs.forEach(doc => {
       const data = doc.data();
       const targetUserId = data.toUserId;
@@ -107,7 +131,6 @@ const Discover: React.FC = () => {
       }
     });
 
-    // Process received requests
     receivedSnapshot.docs.forEach(doc => {
       const data = doc.data();
       const fromUserId = data.fromUserId;
@@ -119,6 +142,61 @@ const Discover: React.FC = () => {
     });
 
     setCollaborationStatus(statuses);
+  };
+
+  const filterDevelopers = () => {
+    let filtered = developers;
+
+    // Filter by username
+    if (searchFilters.username.trim()) {
+      filtered = filtered.filter(dev => 
+        dev.name.toLowerCase().includes(searchFilters.username.toLowerCase())
+      );
+    }
+
+    // Filter by location
+    if (searchFilters.location.trim()) {
+      filtered = filtered.filter(dev => 
+        dev.location.toLowerCase().includes(searchFilters.location.toLowerCase())
+      );
+    }
+
+    // Filter by skills
+    if (searchFilters.skills.trim()) {
+      const searchSkills = searchFilters.skills.toLowerCase().split(',').map(s => s.trim());
+      filtered = filtered.filter(dev => 
+        searchSkills.some(searchSkill => 
+          dev.skills.some(devSkill => 
+            devSkill.toLowerCase().includes(searchSkill)
+          )
+        )
+      );
+    }
+
+    // Filter by role
+    if (searchFilters.role.trim()) {
+      filtered = filtered.filter(dev => 
+        dev.role.toLowerCase().includes(searchFilters.role.toLowerCase())
+      );
+    }
+
+    setFilteredDevelopers(filtered);
+  };
+
+  const handleFilterChange = (field: keyof SearchFilters, value: string) => {
+    setSearchFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const clearFilters = () => {
+    setSearchFilters({
+      username: '',
+      location: '',
+      skills: '',
+      role: ''
+    });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -195,7 +273,6 @@ const Discover: React.FC = () => {
     setLoadingCollabs(prev => ({ ...prev, [targetDev.userId]: true }));
 
     try {
-      // Create collaboration request
       await addDoc(collection(db, 'collaborationRequests'), {
         fromUserId: user.uid,
         fromUserName: userProfile.name || user.email,
@@ -207,7 +284,6 @@ const Discover: React.FC = () => {
         createdAt: new Date().toISOString()
       });
 
-      // Update local status
       setCollaborationStatus(prev => ({
         ...prev,
         [targetDev.userId]: 'sent'
@@ -228,7 +304,6 @@ const Discover: React.FC = () => {
     setLoadingCollabs(prev => ({ ...prev, [targetDev.userId]: true }));
 
     try {
-      // Find and delete the collaboration request/relationship
       const queries = [
         query(
           collection(db, 'collaborationRequests'),
@@ -259,7 +334,6 @@ const Discover: React.FC = () => {
 
       await Promise.all(deletePromises);
 
-      // Update local status
       setCollaborationStatus(prev => ({
         ...prev,
         [targetDev.userId]: 'none'
@@ -271,6 +345,24 @@ const Discover: React.FC = () => {
       toast.error('Failed to end collaboration');
     } finally {
       setLoadingCollabs(prev => ({ ...prev, [targetDev.userId]: false }));
+    }
+  };
+
+  const handleMessageCollaborator = async (targetDev: Developer) => {
+    if (!user) {
+      toast.error('Please login to send messages');
+      return;
+    }
+
+    try {
+      // Create or get existing chat
+      const chatId = [user.uid, targetDev.userId].sort().join('_');
+      
+      // Navigate to chat with the specific user
+      window.location.href = `/chat?user=${targetDev.userId}&name=${encodeURIComponent(targetDev.name)}`;
+    } catch (error) {
+      console.error('Error starting chat:', error);
+      toast.error('Failed to start chat');
     }
   };
 
@@ -364,9 +456,11 @@ const Discover: React.FC = () => {
     }
   };
 
+  const displayedDevelopers = filteredDevelopers.length > 0 ? filteredDevelopers : developers;
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 transition-colors duration-300">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Discover Collaborators</h1>
@@ -380,6 +474,104 @@ const Discover: React.FC = () => {
               {developers.find(d => d.userId === user.uid) ? 'Edit Your Profile' : 'Post Your Profile'}
             </button>
           )}
+        </div>
+
+        {/* Search and Filters */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8 transition-colors duration-300">
+          <div className="flex flex-wrap gap-4 items-center mb-4">
+            <div className="flex-1 min-w-64">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by username..."
+                  value={searchFilters.username}
+                  onChange={(e) => handleFilterChange('username', e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Advanced Filters
+            </button>
+
+            {(searchFilters.username || searchFilters.location || searchFilters.skills || searchFilters.role) && (
+              <button
+                onClick={clearFilters}
+                className="flex items-center px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Clear Filters
+              </button>
+            )}
+          </div>
+
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700"
+            >
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Location</label>
+                <input
+                  type="text"
+                  placeholder="e.g., New York, Remote"
+                  value={searchFilters.location}
+                  onChange={(e) => handleFilterChange('location', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Skills</label>
+                <input
+                  type="text"
+                  placeholder="e.g., React, Python, UI/UX"
+                  value={searchFilters.skills}
+                  onChange={(e) => handleFilterChange('skills', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {commonSkills.slice(0, 6).map(skill => (
+                    <button
+                      key={skill}
+                      onClick={() => handleFilterChange('skills', skill)}
+                      className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded text-xs hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
+                    >
+                      {skill}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
+                <select
+                  value={searchFilters.role}
+                  onChange={(e) => handleFilterChange('role', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">All Roles</option>
+                  {commonRoles.map(role => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Results count */}
+          <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+            Showing {displayedDevelopers.length} developer{displayedDevelopers.length !== 1 ? 's' : ''}
+            {filteredDevelopers.length !== developers.length && ` (filtered from ${developers.length})`}
+          </div>
         </div>
 
         {showForm && (
@@ -484,8 +676,8 @@ const Discover: React.FC = () => {
           </motion.div>
         )}
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {developers.map((dev, index) => (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {displayedDevelopers.map((dev, index) => (
             <motion.div
               key={dev.id}
               initial={{ opacity: 0, y: 10 }}
@@ -521,7 +713,20 @@ const Discover: React.FC = () => {
                       <Pencil className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400" />
                     </button>
                   )}
-                  {user && user.uid !== dev.userId && getCollaborationButton(dev)}
+                  {user && user.uid !== dev.userId && (
+                    <div className="flex space-x-2">
+                      {collaborationStatus[dev.userId] === 'accepted' && (
+                        <button 
+                          onClick={() => handleMessageCollaborator(dev)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
+                        >
+                          <MessageCircle className="w-4 h-4 mr-1" />
+                          Message
+                        </button>
+                      )}
+                      {getCollaborationButton(dev)}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -623,14 +828,21 @@ const Discover: React.FC = () => {
           ))}
         </div>
 
-        {developers.length === 0 && (
+        {displayedDevelopers.length === 0 && (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
               <Users className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No profiles found</h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">Be the first to share your profile!</p>
-            {user && (
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              {developers.length === 0 ? 'No profiles found' : 'No results match your search'}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              {developers.length === 0 
+                ? 'Be the first to share your profile!' 
+                : 'Try adjusting your search filters or clearing them to see more results.'
+              }
+            </p>
+            {user && developers.length === 0 && (
               <button
                 onClick={() => setShowForm(true)}
                 className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg font-medium"
