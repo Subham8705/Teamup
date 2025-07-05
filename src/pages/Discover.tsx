@@ -855,32 +855,36 @@ const Discover: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mb-4">
+            <div className="mb-4">
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                   Projects
                 </h3>
-                <div className="text-sm text-gray-700 dark:text-gray-300">
-                  {dev.projects?.length > 0 ? (
-                    dev.projects.length <= 3 ? (
-                      dev.projects.join(', ')
-                    ) : (
-                      <>
-                        {dev.projects.slice(0, 2).join(', ')}{' '}
-                        <button 
-                          className="text-purple-600 dark:text-purple-400 hover:underline font-medium"
-                          onClick={() => alert(dev.projects.join(', '))}
-                        >
-                          +{dev.projects.length - 2} more
-                        </button>
-                      </>
-                    )
-                  ) : (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">No projects listed</span>
-                  )}
-                </div>
+
+                {dev.projects?.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 text-xs text-gray-700 dark:text-gray-300">
+                    {dev.projects.slice(0, 3).map((project, idx) => (
+                      <span 
+                        key={idx} 
+                        className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium shadow-sm"
+                      >
+                        {project}
+                      </span>
+                    ))}
+                    {dev.projects.length > 3 && (
+                      <button 
+                        className="text-purple-600 dark:text-purple-400 hover:underline font-medium"
+                        onClick={() => alert(dev.projects.join(', '))}
+                      >
+                        +{dev.projects.length - 3} more
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">No projects listed</span>
+                )}
               </div>
 
               <div className="flex space-x-3 mb-4">
