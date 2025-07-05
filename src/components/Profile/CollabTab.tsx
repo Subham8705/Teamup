@@ -6,9 +6,9 @@ import {
   X, 
   Eye, 
   Calendar, 
-  Mail, MapPin, Code, Github, Linkedin, Globe, Heart, Loader2, Users
+  Mail, MapPin, Code, Github, Linkedin, Globe, Heart, Loader2, Users, UserMinus
 } from 'lucide-react';
-import { collection, query, where, getDocs, updateDoc, doc, getDoc, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, getDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -25,6 +25,7 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
   const [selectedProfile, setSelectedProfile] = useState<any>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [loadingRequests, setLoadingRequests] = useState(true);
+  const [actionLoading, setActionLoading] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     if (user) {
@@ -105,6 +106,8 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
   };
 
   const handleRequestResponse = async (requestId: string, status: 'accepted' | 'declined') => {
+    setActionLoading(prev => ({ ...prev, [requestId]: true }));
+
     try {
       await updateDoc(doc(db, 'collaborationRequests', requestId), {
         status,
@@ -122,6 +125,25 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
     } catch (error) {
       console.error('Error responding to request:', error);
       toast.error('Failed to respond to request');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [requestId]: false }));
+    }
+  };
+
+  const handleEndCollaboration = async (collaborationId: string, partnerName: string) => {
+    setActionLoading(prev => ({ ...prev, [collaborationId]: true }));
+
+    try {
+      // Delete the collaboration document
+      await deleteDoc(doc(db, 'collaborationRequests', collaborationId));
+      
+      toast.success(`Collaboration with ${partnerName} ended`);
+      fetchCollaborators(); // Refresh collaborators list
+    } catch (error) {
+      console.error('Error ending collaboration:', error);
+      toast.error('Failed to end collaboration');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [collaborationId]: false }));
     }
   };
 
@@ -199,17 +221,27 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
                     </button>
                     <button
                       onClick={() => handleRequestResponse(request.id, 'accepted')}
-                      className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                      disabled={actionLoading[request.id]}
+                      className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50"
                       title="Accept"
                     >
-                      <Check className="w-4 h-4" />
+                      {actionLoading[request.id] ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
                     </button>
                     <button
                       onClick={() => handleRequestResponse(request.id, 'declined')}
-                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                      disabled={actionLoading[request.id]}
+                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors disabled:opacity-50"
                       title="Decline"
                     >
-                      <X className="w-4 h-4" />
+                      {actionLoading[request.id] ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -247,13 +279,27 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
                       {collab.partnerProfile?.role || 'Developer'}
                     </p>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    collab.type === 'sent' 
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
-                      : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                  }`}>
-                    {collab.type === 'sent' ? 'You invited' : 'Invited you'}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      collab.type === 'sent' 
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                        : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                    }`}>
+                      {collab.type === 'sent' ? 'You invited' : 'Invited you'}
+                    </span>
+                    <button
+                      onClick={() => handleEndCollaboration(collab.id, collab.partnerName)}
+                      disabled={actionLoading[collab.id]}
+                      className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
+                      title="End Collaboration"
+                    >
+                      {actionLoading[collab.id] ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <UserMinus className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {collab.partnerProfile?.skills && (

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, addDoc, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
@@ -13,7 +13,9 @@ import {
   Globe,
   Users,
   Pencil,
-  UserPlus
+  UserPlus,
+  UserCheck,
+  Loader2
 } from 'lucide-react';
 
 interface Developer {
@@ -27,13 +29,19 @@ interface Developer {
   linkedin?: string;
   portfolio?: string;
   joinedDate: string;
-  userId: string; // Add userId to track who posted
+  userId: string;
+}
+
+interface CollaborationStatus {
+  [key: string]: 'none' | 'pending' | 'accepted' | 'sent';
 }
 
 const Discover: React.FC = () => {
   const { user, userProfile } = useAuth();
   const [developers, setDevelopers] = useState<Developer[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [collaborationStatus, setCollaborationStatus] = useState<CollaborationStatus>({});
+  const [loadingCollabs, setLoadingCollabs] = useState<{ [key: string]: boolean }>({});
   const [formData, setFormData] = useState({
     id: '',
     name: '',
@@ -50,6 +58,12 @@ const Discover: React.FC = () => {
     fetchPosts();
   }, []);
 
+  useEffect(() => {
+    if (user) {
+      fetchCollaborationStatuses();
+    }
+  }, [user, developers]);
+
   const fetchPosts = async () => {
     const querySnapshot = await getDocs(collection(db, 'discoverposts'));
     const posts: Developer[] = querySnapshot.docs.map((doc) => ({
@@ -59,6 +73,52 @@ const Discover: React.FC = () => {
       projects: doc.data().projects || []
     }));
     setDevelopers(posts);
+  };
+
+  const fetchCollaborationStatuses = async () => {
+    if (!user) return;
+
+    const statuses: CollaborationStatus = {};
+
+    // Check for existing collaboration requests and accepted collaborations
+    const sentQuery = query(
+      collection(db, 'collaborationRequests'),
+      where('fromUserId', '==', user.uid)
+    );
+    
+    const receivedQuery = query(
+      collection(db, 'collaborationRequests'),
+      where('toUserId', '==', user.uid)
+    );
+
+    const [sentSnapshot, receivedSnapshot] = await Promise.all([
+      getDocs(sentQuery),
+      getDocs(receivedQuery)
+    ]);
+
+    // Process sent requests
+    sentSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const targetUserId = data.toUserId;
+      if (data.status === 'pending') {
+        statuses[targetUserId] = 'sent';
+      } else if (data.status === 'accepted') {
+        statuses[targetUserId] = 'accepted';
+      }
+    });
+
+    // Process received requests
+    receivedSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const fromUserId = data.fromUserId;
+      if (data.status === 'pending') {
+        statuses[fromUserId] = 'pending';
+      } else if (data.status === 'accepted') {
+        statuses[fromUserId] = 'accepted';
+      }
+    });
+
+    setCollaborationStatus(statuses);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,6 +175,25 @@ const Discover: React.FC = () => {
       return;
     }
 
+    const currentStatus = collaborationStatus[targetDev.userId];
+    
+    if (currentStatus === 'sent') {
+      toast.error('Collaboration request already sent');
+      return;
+    }
+
+    if (currentStatus === 'pending') {
+      toast.error('You have a pending request from this user. Check your profile.');
+      return;
+    }
+
+    if (currentStatus === 'accepted') {
+      toast.error('You are already collaborating with this user');
+      return;
+    }
+
+    setLoadingCollabs(prev => ({ ...prev, [targetDev.userId]: true }));
+
     try {
       // Create collaboration request
       await addDoc(collection(db, 'collaborationRequests'), {
@@ -128,15 +207,74 @@ const Discover: React.FC = () => {
         createdAt: new Date().toISOString()
       });
 
+      // Update local status
+      setCollaborationStatus(prev => ({
+        ...prev,
+        [targetDev.userId]: 'sent'
+      }));
+
       toast.success(`Collaboration request sent to ${targetDev.name}!`);
     } catch (error) {
       console.error('Error sending collaboration request:', error);
       toast.error('Failed to send collaboration request');
+    } finally {
+      setLoadingCollabs(prev => ({ ...prev, [targetDev.userId]: false }));
+    }
+  };
+
+  const handleUncollaborate = async (targetDev: Developer) => {
+    if (!user) return;
+
+    setLoadingCollabs(prev => ({ ...prev, [targetDev.userId]: true }));
+
+    try {
+      // Find and delete the collaboration request/relationship
+      const queries = [
+        query(
+          collection(db, 'collaborationRequests'),
+          where('fromUserId', '==', user.uid),
+          where('toUserId', '==', targetDev.userId)
+        ),
+        query(
+          collection(db, 'collaborationRequests'),
+          where('fromUserId', '==', targetDev.userId),
+          where('toUserId', '==', user.uid)
+        )
+      ];
+
+      const [sentSnapshot, receivedSnapshot] = await Promise.all([
+        getDocs(queries[0]),
+        getDocs(queries[1])
+      ]);
+
+      const deletePromises = [];
+      
+      sentSnapshot.docs.forEach(doc => {
+        deletePromises.push(deleteDoc(doc.ref));
+      });
+      
+      receivedSnapshot.docs.forEach(doc => {
+        deletePromises.push(deleteDoc(doc.ref));
+      });
+
+      await Promise.all(deletePromises);
+
+      // Update local status
+      setCollaborationStatus(prev => ({
+        ...prev,
+        [targetDev.userId]: 'none'
+      }));
+
+      toast.success(`Collaboration with ${targetDev.name} ended`);
+    } catch (error) {
+      console.error('Error ending collaboration:', error);
+      toast.error('Failed to end collaboration');
+    } finally {
+      setLoadingCollabs(prev => ({ ...prev, [targetDev.userId]: false }));
     }
   };
 
   const handleAddOrEditClick = () => {
-    // Check if current user already has a post
     const existingPost = developers.find(post => post.userId === user?.uid);
     if (existingPost) {
       setFormData({
@@ -151,7 +289,6 @@ const Discover: React.FC = () => {
         portfolio: existingPost.portfolio || ''
       });
     } else {
-      // Pre-fill with user profile data if available
       setFormData({
         id: '',
         name: userProfile?.name || user?.email?.split('@')[0] || '',
@@ -165,6 +302,66 @@ const Discover: React.FC = () => {
       });
     }
     setShowForm(true);
+  };
+
+  const getCollaborationButton = (targetDev: Developer) => {
+    const status = collaborationStatus[targetDev.userId] || 'none';
+    const isLoading = loadingCollabs[targetDev.userId];
+
+    if (isLoading) {
+      return (
+        <button 
+          disabled
+          className="bg-gray-400 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center text-sm font-medium cursor-not-allowed"
+        >
+          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+          Loading...
+        </button>
+      );
+    }
+
+    switch (status) {
+      case 'sent':
+        return (
+          <button 
+            onClick={() => handleUncollaborate(targetDev)}
+            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
+          >
+            <UserCheck className="w-4 h-4 mr-1" />
+            Request Sent
+          </button>
+        );
+      case 'pending':
+        return (
+          <button 
+            disabled
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center text-sm font-medium cursor-not-allowed"
+          >
+            <UserCheck className="w-4 h-4 mr-1" />
+            Pending Response
+          </button>
+        );
+      case 'accepted':
+        return (
+          <button 
+            onClick={() => handleUncollaborate(targetDev)}
+            className="bg-green-600 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
+          >
+            <UserCheck className="w-4 h-4 mr-1" />
+            Collaborating
+          </button>
+        );
+      default:
+        return (
+          <button 
+            onClick={() => handleCollaborate(targetDev)}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
+          >
+            <UserPlus className="w-4 h-4 mr-1" />
+            Collaborate
+          </button>
+        );
+    }
   };
 
   return (
@@ -324,15 +521,7 @@ const Discover: React.FC = () => {
                       <Pencil className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400" />
                     </button>
                   )}
-                  {user && user.uid !== dev.userId && (
-                    <button 
-                      onClick={() => handleCollaborate(dev)}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
-                    >
-                      <UserPlus className="w-4 h-4 mr-1" />
-                      Collaborate
-                    </button>
-                  )}
+                  {user && user.uid !== dev.userId && getCollaborationButton(dev)}
                 </div>
               </div>
 

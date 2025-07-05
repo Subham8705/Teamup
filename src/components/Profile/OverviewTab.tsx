@@ -1,12 +1,53 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Github, Linkedin, Globe, ChevronRight } from 'lucide-react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface OverviewTabProps {
   profileData: any;
 }
 
 const OverviewTab: React.FC<OverviewTabProps> = ({ profileData }) => {
+  const { user } = useAuth();
+  const [collaborationsCount, setCollaborationsCount] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      fetchCollaborationsCount();
+    }
+  }, [user]);
+
+  const fetchCollaborationsCount = async () => {
+    if (!user) return;
+
+    try {
+      // Count accepted collaborations where user is either sender or receiver
+      const sentQuery = query(
+        collection(db, 'collaborationRequests'),
+        where('fromUserId', '==', user.uid),
+        where('status', '==', 'accepted')
+      );
+      
+      const receivedQuery = query(
+        collection(db, 'collaborationRequests'),
+        where('toUserId', '==', user.uid),
+        where('status', '==', 'accepted')
+      );
+
+      const [sentSnapshot, receivedSnapshot] = await Promise.all([
+        getDocs(sentQuery),
+        getDocs(receivedQuery)
+      ]);
+
+      const totalCollaborations = sentSnapshot.size + receivedSnapshot.size;
+      setCollaborationsCount(totalCollaborations);
+    } catch (error) {
+      console.error('Error fetching collaborations count:', error);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -29,7 +70,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ profileData }) => {
           </div>
           <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
             <div className="text-3xl font-bold text-purple-600">
-              {profileData?.collaborators?.length || 0}
+              {collaborationsCount}
             </div>
             <div className="text-gray-500 dark:text-gray-400 mt-1">Collaborations</div>
           </div>
