@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Lock, Globe } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 
 interface EditProfileFormProps {
@@ -16,9 +16,14 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
   onCancel,
   loading
 }) => {
-  const { register, handleSubmit } = useForm({
-    defaultValues: profileData
+  const { register, handleSubmit, watch } = useForm({
+    defaultValues: {
+      ...profileData,
+      profileVisibility: profileData?.profileVisibility || 'public'
+    }
   });
+
+  const profileVisibility = watch('profileVisibility');
 
   return (
     <motion.form 
@@ -58,6 +63,76 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
           className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
           disabled={loading}
         />
+      </div>
+
+      {/* Profile Visibility Settings */}
+      <div>
+        <label className="block text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">Profile & Messaging Settings</label>
+        <div className="space-y-3">
+          <div className="flex items-start space-x-3">
+            <input
+              {...register('profileVisibility')}
+              type="radio"
+              value="public"
+              id="public"
+              className="mt-1 w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+              disabled={loading}
+            />
+            <div className="flex-1">
+              <label htmlFor="public" className="flex items-center text-sm font-medium text-gray-900 dark:text-white cursor-pointer">
+                <Globe className="w-4 h-4 mr-2 text-green-600" />
+                Public Profile
+              </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                Anyone can find you in search and send you messages directly. Best for networking and finding new collaborations.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-start space-x-3">
+            <input
+              {...register('profileVisibility')}
+              type="radio"
+              value="private"
+              id="private"
+              className="mt-1 w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+              disabled={loading}
+            />
+            <div className="flex-1">
+              <label htmlFor="private" className="flex items-center text-sm font-medium text-gray-900 dark:text-white cursor-pointer">
+                <Lock className="w-4 h-4 mr-2 text-orange-600" />
+                Private Profile
+              </label>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                Only your collaborators can message you. Others must send collaboration requests first. More privacy and control.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Visual indicator */}
+        <div className={`mt-3 p-3 rounded-lg border-l-4 ${
+          profileVisibility === 'public' 
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-400' 
+            : 'bg-orange-50 dark:bg-orange-900/20 border-orange-400'
+        }`}>
+          <div className="flex items-center">
+            {profileVisibility === 'public' ? (
+              <Globe className="w-4 h-4 mr-2 text-green-600" />
+            ) : (
+              <Lock className="w-4 h-4 mr-2 text-orange-600" />
+            )}
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              {profileVisibility === 'public' ? 'Public Profile Active' : 'Private Profile Active'}
+            </span>
+          </div>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+            {profileVisibility === 'public' 
+              ? 'Your profile is discoverable and anyone can message you.'
+              : 'Your profile is protected and only collaborators can message you.'
+            }
+          </p>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

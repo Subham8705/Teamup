@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, doc, query, where, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
@@ -19,7 +19,8 @@ import {
   Search,
   Filter,
   MessageCircle,
-  X
+  X,
+  Lock
 } from 'lucide-react';
 
 interface Developer {
@@ -34,6 +35,7 @@ interface Developer {
   portfolio?: string;
   joinedDate: string;
   userId: string;
+  profileVisibility?: string;
 }
 
 interface CollaborationStatus {
@@ -55,6 +57,7 @@ const Discover: React.FC = () => {
   const [collaborationStatus, setCollaborationStatus] = useState<CollaborationStatus>({});
   const [loadingCollabs, setLoadingCollabs] = useState<{ [key: string]: boolean }>({});
   const [showFilters, setShowFilters] = useState(false);
+  const [collaborators, setCollaborators] = useState<Set<string>>(new Set());
   const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     username: '',
     location: '',
@@ -83,6 +86,7 @@ const Discover: React.FC = () => {
   useEffect(() => {
     if (user) {
       fetchCollaborationStatuses();
+      loadCollaborators();
     }
   }, [user, developers]);
 
@@ -99,6 +103,43 @@ const Discover: React.FC = () => {
       projects: doc.data().projects || []
     }));
     setDevelopers(posts);
+  };
+
+  const loadCollaborators = async () => {
+    if (!user) return;
+
+    try {
+      const sentQuery = query(
+        collection(db, 'collaborationRequests'),
+        where('fromUserId', '==', user.uid),
+        where('status', '==', 'accepted')
+      );
+      
+      const receivedQuery = query(
+        collection(db, 'collaborationRequests'),
+        where('toUserId', '==', user.uid),
+        where('status', '==', 'accepted')
+      );
+
+      const [sentSnapshot, receivedSnapshot] = await Promise.all([
+        getDocs(sentQuery),
+        getDocs(receivedQuery)
+      ]);
+
+      const collabIds = new Set<string>();
+      
+      sentSnapshot.docs.forEach(doc => {
+        collabIds.add(doc.data().toUserId);
+      });
+      
+      receivedSnapshot.docs.forEach(doc => {
+        collabIds.add(doc.data().fromUserId);
+      });
+
+      setCollaborators(collabIds);
+    } catch (error) {
+      console.error('Error loading collaborators:', error);
+    }
   };
 
   const fetchCollaborationStatuses = async () => {
@@ -339,6 +380,13 @@ const Discover: React.FC = () => {
         [targetDev.userId]: 'none'
       }));
 
+      // Update collaborators set
+      setCollaborators(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(targetDev.userId);
+        return newSet;
+      });
+
       toast.success(`Collaboration with ${targetDev.name} ended`);
     } catch (error) {
       console.error('Error ending collaboration:', error);
@@ -348,9 +396,39 @@ const Discover: React.FC = () => {
     }
   };
 
+  const canMessageUser = async (targetDev: Developer) => {
+    // Get the user's profile to check visibility settings
+    try {
+      const userDoc = await getDoc(doc(db, 'users', targetDev.userId));
+      const userData = userDoc.data();
+      
+      // If user has public profile or no visibility setting (default to public), anyone can message
+      if (!userData?.profileVisibility || userData.profileVisibility === 'public') {
+        return true;
+      }
+      
+      // If user has private profile, only collaborators can message
+      if (userData.profileVisibility === 'private') {
+        return collaborators.has(targetDev.userId);
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking user profile visibility:', error);
+      return false;
+    }
+  };
+
   const handleMessageCollaborator = async (targetDev: Developer) => {
     if (!user) {
       toast.error('Please login to send messages');
+      return;
+    }
+
+    const canMessage = await canMessageUser(targetDev);
+    
+    if (!canMessage) {
+      toast.error(`${targetDev.name} has a private profile. You need to collaborate with them first to send messages.`);
       return;
     }
 
@@ -454,6 +532,29 @@ const Discover: React.FC = () => {
           </button>
         );
     }
+  };
+
+  const getMessageButton = (targetDev: Developer) => {
+    const isCollaborator = collaborators.has(targetDev.userId);
+    
+    return (
+      <button 
+        onClick={() => handleMessageCollaborator(targetDev)}
+        className={`px-3 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium ${
+          isCollaborator || !targetDev.profileVisibility || targetDev.profileVisibility === 'public'
+            ? 'bg-blue-600 hover:bg-blue-700 text-white'
+            : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+        }`}
+        disabled={targetDev.profileVisibility === 'private' && !isCollaborator}
+      >
+        {targetDev.profileVisibility === 'private' && !isCollaborator ? (
+          <Lock className="w-4 h-4 mr-1" />
+        ) : (
+          <MessageCircle className="w-4 h-4 mr-1" />
+        )}
+        Message
+      </button>
+    );
   };
 
   const displayedDevelopers = filteredDevelopers.length > 0 ? filteredDevelopers : developers;
@@ -689,6 +790,12 @@ const Discover: React.FC = () => {
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">{dev.name}</h2>
                   <p className="text-sm text-purple-600 dark:text-purple-400 font-medium">{dev.role}</p>
+                  {dev.profileVisibility === 'private' && (
+                    <div className="flex items-center mt-1">
+                      <Lock className="w-3 h-3 mr-1 text-orange-600" />
+                      <span className="text-xs text-orange-600 dark:text-orange-400">Private Profile</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex space-x-2">
                   {user?.uid === dev.userId && (
@@ -715,15 +822,7 @@ const Discover: React.FC = () => {
                   )}
                   {user && user.uid !== dev.userId && (
                     <div className="flex space-x-2">
-                      {collaborationStatus[dev.userId] === 'accepted' && (
-                        <button 
-                          onClick={() => handleMessageCollaborator(dev)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
-                        >
-                          <MessageCircle className="w-4 h-4 mr-1" />
-                          Message
-                        </button>
-                      )}
+                      {getMessageButton(dev)}
                       {getCollaborationButton(dev)}
                     </div>
                   )}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Github, Linkedin, Globe, ChevronRight } from 'lucide-react';
+import { Github, Linkedin, Globe, ChevronRight, Lock, Eye } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -54,6 +54,35 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ profileData }) => {
       animate={{ opacity: 1 }}
       className="space-y-8"
     >
+      {/* Profile Visibility Status */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
+        <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Profile Settings</h3>
+        <div className={`flex items-center p-4 rounded-lg border-l-4 ${
+          profileData?.profileVisibility === 'private'
+            ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-400'
+            : 'bg-green-50 dark:bg-green-900/20 border-green-400'
+        }`}>
+          <div className="flex items-center">
+            {profileData?.profileVisibility === 'private' ? (
+              <Lock className="w-5 h-5 mr-3 text-orange-600" />
+            ) : (
+              <Globe className="w-5 h-5 mr-3 text-green-600" />
+            )}
+            <div>
+              <h4 className="font-medium text-gray-900 dark:text-white">
+                {profileData?.profileVisibility === 'private' ? 'Private Profile' : 'Public Profile'}
+              </h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {profileData?.profileVisibility === 'private' 
+                  ? 'Only collaborators can message you directly'
+                  : 'Anyone can find and message you'
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Profile Summary */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
         <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Profile Summary</h3>
