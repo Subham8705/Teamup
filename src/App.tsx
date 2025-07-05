@@ -34,17 +34,69 @@ function App() {
             <Navbar />
             <main className="w-full">
               <Routes>
+                {/* Public Routes */}
                 <Route path="/" element={<Home />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/ideas" element={<Ideas />} />
-                <Route path="/teams" element={<Teams />} />
-                <Route path="/hackathons" element={<Hackathons />} />
-                <Route path="/courses" element={<Courses />} />
                 <Route path="/about" element={<About />} />
-                <Route path="/discover" element={<Discover />} />
                 
-                {/* Protected Routes */}
+                {/* Auth Routes (only accessible when NOT logged in) */}
+                <Route
+                  path="/login"
+                  element={
+                    <ProtectedRoute inverse>
+                      <Login />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/register"
+                  element={
+                    <ProtectedRoute inverse>
+                      <Register />
+                    </ProtectedRoute>
+                  }
+                />
+                
+                {/* Protected Routes (only accessible when logged in) */}
+                <Route
+                  path="/ideas"
+                  element={
+                    <ProtectedRoute>
+                      <Ideas />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/teams"
+                  element={
+                    <ProtectedRoute>
+                      <Teams />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/hackathons"
+                  element={
+                    <ProtectedRoute>
+                      <Hackathons />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/discover"
+                  element={
+                    <ProtectedRoute>
+                      <Discover />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/courses"
+                  element={
+                    <ProtectedRoute>
+                      <Courses />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/profile"
                   element={
@@ -73,6 +125,9 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
+
+                {/* Catch all route - redirect to home */}
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </main>
           </div>

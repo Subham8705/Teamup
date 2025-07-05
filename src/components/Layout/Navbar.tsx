@@ -24,7 +24,14 @@ const Navbar: React.FC = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const navItems = [
+  // Navigation items for non-authenticated users
+  const publicNavItems = [
+    { path: '/', label: 'Home', icon: Home },
+    { path: '/about', label: 'About', icon: Info },
+  ];
+
+  // Navigation items for authenticated users
+  const authenticatedNavItems = [
     { path: '/', label: 'Home', icon: Home },
     { path: '/ideas', label: 'Ideas', icon: Lightbulb },
     { path: '/teams', label: 'Teams', icon: Users },
@@ -34,6 +41,9 @@ const Navbar: React.FC = () => {
     { path: '/courses', label: 'Courses', icon: BookOpen },
     { path: '/about', label: 'About', icon: Info },
   ];
+
+  // Choose navigation items based on authentication status
+  const navItems = user ? authenticatedNavItems : publicNavItems;
 
   return (
     <nav className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 w-full sticky top-0 z-50">
