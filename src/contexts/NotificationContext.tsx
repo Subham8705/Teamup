@@ -13,26 +13,17 @@ import {
 import { db } from '../config/firebase';
 import { useAuth } from './AuthContext';
 
-interface ChatNotification {
-  chatId: string;
-  chatName: string;
-  unreadCount: number;
-  lastMessage: string;
-  lastMessageTime: any;
-}
-
 interface NotificationCounts {
   teams: number;
   chats: number;
   collaborations: number;
   total: number;
-  chatDetails: ChatNotification[];
 }
 
 interface NotificationContextType {
   notifications: NotificationCounts;
   markTeamNotificationsRead: () => Promise<void>;
-  markChatNotificationsRead: (chatId?: string) => Promise<void>;
+  markChatNotificationsRead: () => Promise<void>;
   markCollabNotificationsRead: () => Promise<void>;
   refreshNotifications: () => void;
 }
@@ -40,18 +31,17 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
-  const { user, userProfile } = useAuth();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationCounts>({
     teams: 0,
     chats: 0,
     collaborations: 0,
-    total: 0,
-    chatDetails: []
+    total: 0
   });
 
   useEffect(() => {
     if (!user) {
-      setNotifications({ teams: 0, chats: 0, collaborations: 0, total: 0, chatDetails: [] });
+      setNotifications({ teams: 0, chats: 0, collaborations: 0, total: 0 });
       return;
     }
 
@@ -66,7 +56,10 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
     const unsubscribeApplications = onSnapshot(teamApplicationsQuery, (snapshot) => {
       const applicationCount = snapshot.size;
-      updateTeamNotifications(applicationCount, 'applications');
+      setNotifications(prev => ({
+        ...prev,
+        teams: applicationCount + prev.teams - (prev.teams > 0 ? Math.floor(prev.teams / 2) : 0)
+      }));
     });
     unsubscribes.push(unsubscribeApplications);
 
@@ -79,7 +72,10 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
 
     const unsubscribeInvitations = onSnapshot(teamInvitationsQuery, (snapshot) => {
       const invitationCount = snapshot.size;
-      updateTeamNotifications(invitationCount, 'invitations');
+      setNotifications(prev => ({
+        ...prev,
+        teams: prev.teams + invitationCount
+      }));
     });
     unsubscribes.push(unsubscribeInvitations);
 
@@ -99,11 +95,10 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     });
     unsubscribes.push(unsubscribeCollabRequests);
 
-    // Listen to chats and unread messages
+    // Listen to unread messages
     const chatsQuery = query(collection(db, 'chats'));
     const unsubscribeChats = onSnapshot(chatsQuery, async (snapshot) => {
-      const chatNotifications: ChatNotification[] = [];
-      let totalUnreadCount = 0;
+      let unreadCount = 0;
       
       for (const chatDoc of snapshot.docs) {
         const chatData = chatDoc.data();
@@ -113,75 +108,43 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         const isTeamChat = chatData.type === 'team';
         
         if (isDirectChat || isTeamChat) {
-          // Get unread messages for this chat
+          // Check for unread messages
           const messagesQuery = query(
             collection(db, 'chats', chatDoc.id, 'messages'),
+            where('senderId', '!=', user.uid),
+            where('seen', '==', false),
+            orderBy('senderId'),
             orderBy('timestamp', 'desc'),
             limit(50)
           );
           
           try {
             const messagesSnapshot = await getDocs(messagesQuery);
-            let unreadCount = 0;
-            let lastMessage = '';
-            let lastMessageTime = null;
-            
-            messagesSnapshot.docs.forEach(messageDoc => {
-              const messageData = messageDoc.data();
-              
-              // Count unread messages from others
-              if (messageData.senderId !== user.uid && !messageData.seen) {
-                unreadCount++;
-              }
-              
-              // Get last message info
-              if (!lastMessage) {
-                lastMessage = messageData.content;
-                lastMessageTime = messageData.timestamp;
-              }
-            });
-            
-            if (unreadCount > 0) {
-              let chatName = '';
-              
-              if (chatData.type === 'team') {
-                chatName = chatData.teamName || 'Team Chat';
-              } else {
-                // For direct chats, get the other person's name
-                const otherUserName = chatData.memberNames?.find((name: string) => 
-                  name !== userProfile?.name && name !== user.email
-                );
-                chatName = otherUserName || 'Direct Chat';
-              }
-              
-              chatNotifications.push({
-                chatId: chatDoc.id,
-                chatName,
-                unreadCount,
-                lastMessage: lastMessage.substring(0, 50) + (lastMessage.length > 50 ? '...' : ''),
-                lastMessageTime
-              });
-              
-              totalUnreadCount += unreadCount;
-            }
+            unreadCount += messagesSnapshot.size;
           } catch (error) {
-            console.log('Error fetching messages for chat:', chatDoc.id);
+            // Handle compound query limitations
+            console.log('Using alternative query for unread messages');
           }
         }
       }
       
       setNotifications(prev => ({
         ...prev,
-        chats: totalUnreadCount,
-        chatDetails: chatNotifications
+        chats: unreadCount
       }));
     });
     unsubscribes.push(unsubscribeChats);
 
+    // Calculate total
+    setNotifications(prev => ({
+      ...prev,
+      total: prev.teams + prev.chats + prev.collaborations
+    }));
+
     return () => {
       unsubscribes.forEach(unsubscribe => unsubscribe());
     };
-  }, [user, userProfile]);
+  }, [user]);
 
   // Update total whenever individual counts change
   useEffect(() => {
@@ -191,54 +154,34 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     }));
   }, [notifications.teams, notifications.chats, notifications.collaborations]);
 
-  const updateTeamNotifications = (count: number, type: 'applications' | 'invitations') => {
-    setNotifications(prev => {
-      const currentApplications = type === 'applications' ? count : Math.floor(prev.teams / 2);
-      const currentInvitations = type === 'invitations' ? count : prev.teams - Math.floor(prev.teams / 2);
-      
-      return {
-        ...prev,
-        teams: currentApplications + currentInvitations
-      };
-    });
-  };
-
   const markTeamNotificationsRead = async () => {
     setNotifications(prev => ({
       ...prev,
-      teams: 0
+      teams: 0,
+      total: prev.chats + prev.collaborations
     }));
   };
 
-  const markChatNotificationsRead = async (chatId?: string) => {
-    if (chatId) {
-      // Mark specific chat as read
-      setNotifications(prev => ({
-        ...prev,
-        chatDetails: prev.chatDetails.filter(chat => chat.chatId !== chatId),
-        chats: Math.max(0, prev.chats - (prev.chatDetails.find(chat => chat.chatId === chatId)?.unreadCount || 0))
-      }));
-    } else {
-      // Mark all chats as read
-      setNotifications(prev => ({
-        ...prev,
-        chats: 0,
-        chatDetails: []
-      }));
-    }
+  const markChatNotificationsRead = async () => {
+    setNotifications(prev => ({
+      ...prev,
+      chats: 0,
+      total: prev.teams + prev.collaborations
+    }));
   };
 
   const markCollabNotificationsRead = async () => {
     setNotifications(prev => ({
       ...prev,
-      collaborations: 0
+      collaborations: 0,
+      total: prev.teams + prev.chats
     }));
   };
 
   const refreshNotifications = () => {
     // Force refresh by re-triggering useEffect
     if (user) {
-      setNotifications({ teams: 0, chats: 0, collaborations: 0, total: 0, chatDetails: [] });
+      setNotifications({ teams: 0, chats: 0, collaborations: 0, total: 0 });
     }
   };
 

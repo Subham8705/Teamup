@@ -1,3 +1,5 @@
+navbar
+
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -96,7 +98,7 @@ const Navbar: React.FC = () => {
               >
                 <div className="relative">
                   <item.icon className="w-4 h-4 flex-shrink-0" />
-                  {'notification' in item && item.notification && item.notification > 0 && (
+                  {'notification' in item && item.notification && (
                     <NotificationBadge count={item.notification} />
                   )}
                 </div>
@@ -193,7 +195,7 @@ const Navbar: React.FC = () => {
                 >
                   <div className="relative">
                     <item.icon className="w-4 h-4" />
-                    {'notification' in item && item.notification && item.notification > 0 && (
+                    {'notification' in item && item.notification && (
                       <NotificationBadge count={item.notification} />
                     )}
                   </div>
