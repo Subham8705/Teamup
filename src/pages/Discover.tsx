@@ -36,7 +36,6 @@ interface Developer {
   joinedDate: string;
   userId: string;
   profileVisibility?: string;
-  collaborationCount?: number;
 }
 
 interface CollaborationStatus {
@@ -97,39 +96,12 @@ const Discover: React.FC = () => {
 
   const fetchPosts = async () => {
     const querySnapshot = await getDocs(collection(db, 'discoverposts'));
-    const posts: Developer[] = await Promise.all(
-      querySnapshot.docs.map(async (docSnap) => {
-        const data = docSnap.data();
-        
-        // Get collaboration count for each developer
-        const sentQuery = query(
-          collection(db, 'collaborationRequests'),
-          where('fromUserId', '==', data.userId),
-          where('status', '==', 'accepted')
-        );
-        
-        const receivedQuery = query(
-          collection(db, 'collaborationRequests'),
-          where('toUserId', '==', data.userId),
-          where('status', '==', 'accepted')
-        );
-
-        const [sentSnapshot, receivedSnapshot] = await Promise.all([
-          getDocs(sentQuery),
-          getDocs(receivedQuery)
-        ]);
-
-        const collaborationCount = sentSnapshot.size + receivedSnapshot.size;
-
-        return {
-          id: docSnap.id,
-          ...(data as Omit<Developer, 'id'>),
-          skills: data.skills || [],
-          projects: data.projects || [],
-          collaborationCount
-        };
-      })
-    );
+    const posts: Developer[] = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<Developer, 'id'>),
+      skills: doc.data().skills || [],
+      projects: doc.data().projects || []
+    }));
     setDevelopers(posts);
   };
 
@@ -824,13 +796,6 @@ const Discover: React.FC = () => {
                       <span className="text-xs text-orange-600 dark:text-orange-400">Private Profile</span>
                     </div>
                   )}
-                  {/* Collaboration Count */}
-                  <div className="flex items-center mt-1">
-                    <Users className="w-3 h-3 mr-1 text-gray-500" />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {dev.collaborationCount || 0} collaboration{(dev.collaborationCount || 0) !== 1 ? 's' : ''}
-                    </span>
-                  </div>
                 </div>
                 <div className="flex space-x-2">
                   {user?.uid === dev.userId && (
