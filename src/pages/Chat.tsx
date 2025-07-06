@@ -16,6 +16,7 @@ import {
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useChatContext } from '../contexts/ChatContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import { LogOut, MessageCircle } from 'lucide-react';
 import MessageLayout from '../components/Chatsrelated/MessageLayout';
 import UserList from '../components/Chatsrelated/UserList';
@@ -43,6 +44,7 @@ interface Message {
 const ChatPage: React.FC = () => {
   const { user, logout, userProfile } = useAuth();
   const { selectedChat, setSelectedChat, startTeamChat } = useChatContext();
+  const { markChatNotificationsRead } = useNotifications();
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -63,6 +65,11 @@ const ChatPage: React.FC = () => {
       startChatWithUser(targetUserId, targetUserName || 'User');
     }
   }, [user]);
+
+  // Mark chat notifications as read when entering chat page
+  useEffect(() => {
+    markChatNotificationsRead();
+  }, []);
 
   const startChatWithUser = async (targetUserId: string, targetUserName: string) => {
     if (!user) return;
@@ -163,6 +170,11 @@ const ChatPage: React.FC = () => {
     for (const message of unseenMessages) {
       const messageRef = doc(db, 'chats', chatId, 'messages', message.id);
       await updateDoc(messageRef, { seen: true });
+    }
+
+    // Mark this specific chat notifications as read
+    if (unseenMessages.length > 0) {
+      markChatNotificationsRead(chatId);
     }
   };
 

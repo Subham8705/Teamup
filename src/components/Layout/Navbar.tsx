@@ -96,7 +96,7 @@ const Navbar: React.FC = () => {
               >
                 <div className="relative">
                   <item.icon className="w-4 h-4 flex-shrink-0" />
-                  {'notification' in item && item.notification && (
+                  {'notification' in item && item.notification && item.notification > 0 && (
                     <NotificationBadge count={item.notification} />
                   )}
                 </div>
@@ -193,7 +193,7 @@ const Navbar: React.FC = () => {
                 >
                   <div className="relative">
                     <item.icon className="w-4 h-4" />
-                    {'notification' in item && item.notification && (
+                    {'notification' in item && item.notification && item.notification > 0 && (
                       <NotificationBadge count={item.notification} />
                     )}
                   </div>

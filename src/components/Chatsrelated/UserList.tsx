@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useChatContext } from '../../contexts/ChatContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { toast } from 'react-hot-toast';
 
 interface User {
@@ -28,6 +29,7 @@ const UserList: React.FC = () => {
   const [collaborators, setCollaborators] = useState<Set<string>>(new Set());
   const [teamMembers, setTeamMembers] = useState<Set<string>>(new Set());
   const { currentUser, startChat } = useChatContext();
+  const { notifications, markChatNotificationsRead } = useNotifications();
 
   const handleSearch = async () => {
     if (!search.trim()) {
@@ -196,6 +198,12 @@ const UserList: React.FC = () => {
     return null;
   };
 
+  const getChatNotification = (user: User) => {
+    const chatId = [currentUser?.uid, user.id].sort().join('_');
+    const chatNotification = notifications.chatDetails.find(chat => chat.chatId === chatId);
+    return chatNotification?.unreadCount || 0;
+  };
+
   const handleStartChat = (user: User) => {
     if (!canMessageUser(user)) {
       const isTeamMember = teamMembers.has(user.id);
@@ -206,6 +214,10 @@ const UserList: React.FC = () => {
       }
       return;
     }
+    
+    // Mark this specific chat as read
+    const chatId = [currentUser?.uid, user.id].sort().join('_');
+    markChatNotificationsRead(chatId);
     
     startChat(user);
   };
@@ -249,12 +261,13 @@ const UserList: React.FC = () => {
             users.map((user) => {
               const canMessage = canMessageUser(user);
               const relationshipLabel = getRelationshipLabel(user);
+              const unreadCount = getChatNotification(user);
               
               return (
                 <div
                   key={user.id}
                   onClick={() => handleStartChat(user)}
-                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors relative ${
                     canMessage 
                       ? 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer' 
                       : 'opacity-60 cursor-not-allowed'
@@ -271,10 +284,17 @@ const UserList: React.FC = () => {
                         <Lock className="w-3 h-3 text-white" />
                       </div>
                     )}
+                    {unreadCount > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      <p className={`text-sm font-medium truncate ${
+                        unreadCount > 0 ? 'text-gray-900 dark:text-white font-semibold' : 'text-gray-900 dark:text-white'
+                      }`}>
                         {user.name}
                       </p>
                       {relationshipLabel && (
@@ -292,6 +312,11 @@ const UserList: React.FC = () => {
                           ? 'Private profile - use team chat'
                           : 'Private profile - collaborate first'
                         }
+                      </p>
+                    )}
+                    {unreadCount > 0 && (
+                      <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                        {unreadCount} new message{unreadCount > 1 ? 's' : ''}
                       </p>
                     )}
                   </div>
