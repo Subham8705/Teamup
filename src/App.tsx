@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { ChatProvider } from './contexts/ChatContext';
 import Navbar from './components/Layout/Navbar';
 import ProtectedRoute from './components/Layout/ProtectedRoute';
@@ -23,115 +24,117 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Router>
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 w-full overflow-x-hidden transition-colors duration-300">
-            <Toaster 
-              position="top-right"
-              toastOptions={{
-                className: 'dark:bg-gray-800 dark:text-white',
-              }}
-            />
-            <Navbar />
-            <main className="w-full">
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/" element={<Home />} />
-                <Route path="/about" element={<About />} />
-                
-                {/* Auth Routes (only accessible when NOT logged in) */}
-                <Route
-                  path="/login"
-                  element={
-                    <ProtectedRoute inverse>
-                      <Login />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/register"
-                  element={
-                    <ProtectedRoute inverse>
-                      <Register />
-                    </ProtectedRoute>
-                  }
-                />
-                
-                {/* Protected Routes (only accessible when logged in) */}
-                <Route
-                  path="/ideas"
-                  element={
-                    <ProtectedRoute>
-                      <Ideas />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/teams"
-                  element={
-                    <ProtectedRoute>
-                      <Teams />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/hackathons"
-                  element={
-                    <ProtectedRoute>
-                      <Hackathons />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/discover"
-                  element={
-                    <ProtectedRoute>
-                      <Discover />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/courses"
-                  element={
-                    <ProtectedRoute>
-                      <Courses />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/profile"
-                  element={
-                    <ProtectedRoute>
-                      <Profile />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/chat"
-                  element={
-                    <ProtectedRoute>
-                      <ChatProvider>
-                        <Chat />
-                      </ChatProvider>
-                    </ProtectedRoute>
-                  }
-                />
-                
-                {/* Auth wrapper route (from the chat app) */}
-                <Route 
-                  path="/auth" 
-                  element={
-                    <ProtectedRoute inverse>
-                      <AuthWrapper />
-                    </ProtectedRoute>
-                  } 
-                />
+        <NotificationProvider>
+          <Router>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 w-full overflow-x-hidden transition-colors duration-300">
+              <Toaster 
+                position="top-right"
+                toastOptions={{
+                  className: 'dark:bg-gray-800 dark:text-white',
+                }}
+              />
+              <Navbar />
+              <main className="w-full">
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<Home />} />
+                  <Route path="/about" element={<About />} />
+                  
+                  {/* Auth Routes (only accessible when NOT logged in) */}
+                  <Route
+                    path="/login"
+                    element={
+                      <ProtectedRoute inverse>
+                        <Login />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/register"
+                    element={
+                      <ProtectedRoute inverse>
+                        <Register />
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* Protected Routes (only accessible when logged in) */}
+                  <Route
+                    path="/ideas"
+                    element={
+                      <ProtectedRoute>
+                        <Ideas />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/teams"
+                    element={
+                      <ProtectedRoute>
+                        <Teams />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/hackathons"
+                    element={
+                      <ProtectedRoute>
+                        <Hackathons />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/discover"
+                    element={
+                      <ProtectedRoute>
+                        <Discover />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/courses"
+                    element={
+                      <ProtectedRoute>
+                        <Courses />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute>
+                        <Profile />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/chat"
+                    element={
+                      <ProtectedRoute>
+                        <ChatProvider>
+                          <Chat />
+                        </ChatProvider>
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* Auth wrapper route (from the chat app) */}
+                  <Route 
+                    path="/auth" 
+                    element={
+                      <ProtectedRoute inverse>
+                        <AuthWrapper />
+                      </ProtectedRoute>
+                    } 
+                  />
 
-                {/* Catch all route - redirect to home */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </main>
-          </div>
-        </Router>
+                  {/* Catch all route - redirect to home */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </main>
+            </div>
+          </Router>
+        </NotificationProvider>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -11,6 +11,7 @@ import {
 import { collection, query, where, getDocs, updateDoc, doc, getDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { toast } from 'react-hot-toast';
 
 interface CollabTabProps {
@@ -20,8 +21,10 @@ interface CollabTabProps {
 
 const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
   const { user } = useAuth();
+  const { markCollabNotificationsRead } = useNotifications();
   const [requests, setRequests] = useState<any[]>([]);
   const [collaborators, setCollaborators] = useState<any[]>([]);
+  const [mutualCollaborators, setMutualCollaborators] = useState<any[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<any>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [loadingRequests, setLoadingRequests] = useState(true);
@@ -31,8 +34,14 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
     if (user) {
       fetchCollaborationRequests();
       fetchCollaborators();
+      fetchMutualCollaborators();
     }
   }, [user]);
+
+  // Mark notifications as read when component mounts
+  useEffect(() => {
+    markCollabNotificationsRead();
+  }, []);
 
   const fetchCollaborationRequests = async () => {
     if (!user) return;
@@ -105,6 +114,88 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
     }
   };
 
+  const fetchMutualCollaborators = async () => {
+    if (!user) return;
+
+    try {
+      // Get all user's collaborators
+      const userCollaborators = new Set<string>();
+      
+      const sentQuery = query(
+        collection(db, 'collaborationRequests'),
+        where('fromUserId', '==', user.uid),
+        where('status', '==', 'accepted')
+      );
+      
+      const receivedQuery = query(
+        collection(db, 'collaborationRequests'),
+        where('toUserId', '==', user.uid),
+        where('status', '==', 'accepted')
+      );
+
+      const [sentSnapshot, receivedSnapshot] = await Promise.all([
+        getDocs(sentQuery),
+        getDocs(receivedQuery)
+      ]);
+
+      sentSnapshot.docs.forEach(doc => {
+        userCollaborators.add(doc.data().toUserId);
+      });
+      
+      receivedSnapshot.docs.forEach(doc => {
+        userCollaborators.add(doc.data().fromUserId);
+      });
+
+      // Find mutual collaborators (collaborators who also collaborate with each other)
+      const mutualCollabs = [];
+      const collaboratorArray = Array.from(userCollaborators);
+
+      for (let i = 0; i < collaboratorArray.length; i++) {
+        for (let j = i + 1; j < collaboratorArray.length; j++) {
+          const user1 = collaboratorArray[i];
+          const user2 = collaboratorArray[j];
+
+          // Check if user1 and user2 collaborate with each other
+          const mutualQuery1 = query(
+            collection(db, 'collaborationRequests'),
+            where('fromUserId', '==', user1),
+            where('toUserId', '==', user2),
+            where('status', '==', 'accepted')
+          );
+
+          const mutualQuery2 = query(
+            collection(db, 'collaborationRequests'),
+            where('fromUserId', '==', user2),
+            where('toUserId', '==', user1),
+            where('status', '==', 'accepted')
+          );
+
+          const [mutual1, mutual2] = await Promise.all([
+            getDocs(mutualQuery1),
+            getDocs(mutualQuery2)
+          ]);
+
+          if (!mutual1.empty || !mutual2.empty) {
+            // Get user profiles
+            const [user1Doc, user2Doc] = await Promise.all([
+              getDoc(doc(db, 'users', user1)),
+              getDoc(doc(db, 'users', user2))
+            ]);
+
+            mutualCollabs.push({
+              user1: { id: user1, ...user1Doc.data() },
+              user2: { id: user2, ...user2Doc.data() }
+            });
+          }
+        }
+      }
+
+      setMutualCollaborators(mutualCollabs);
+    } catch (error) {
+      console.error('Error fetching mutual collaborators:', error);
+    }
+  };
+
   const handleRequestResponse = async (requestId: string, status: 'accepted' | 'declined') => {
     setActionLoading(prev => ({ ...prev, [requestId]: true }));
 
@@ -117,6 +208,7 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
       if (status === 'accepted') {
         toast.success('Collaboration request accepted!');
         fetchCollaborators(); // Refresh collaborators list
+        fetchMutualCollaborators(); // Refresh mutual collaborators
       } else {
         toast.success('Collaboration request declined');
       }
@@ -139,6 +231,7 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
       
       toast.success(`Collaboration with ${partnerName} ended`);
       fetchCollaborators(); // Refresh collaborators list
+      fetchMutualCollaborators(); // Refresh mutual collaborators
     } catch (error) {
       console.error('Error ending collaboration:', error);
       toast.error('Failed to end collaboration');
@@ -166,7 +259,33 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
     try {
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (userDoc.exists()) {
-        setSelectedProfile({ id: userId, ...userDoc.data() });
+        const userData = userDoc.data();
+        
+        // Get collaboration count for this user
+        const sentQuery = query(
+          collection(db, 'collaborationRequests'),
+          where('fromUserId', '==', userId),
+          where('status', '==', 'accepted')
+        );
+        
+        const receivedQuery = query(
+          collection(db, 'collaborationRequests'),
+          where('toUserId', '==', userId),
+          where('status', '==', 'accepted')
+        );
+
+        const [sentSnapshot, receivedSnapshot] = await Promise.all([
+          getDocs(sentQuery),
+          getDocs(receivedQuery)
+        ]);
+
+        const collaborationCount = sentSnapshot.size + receivedSnapshot.size;
+        
+        setSelectedProfile({ 
+          id: userId, 
+          ...userData, 
+          collaborationCount 
+        });
         setShowProfileModal(true);
       }
     } catch (error) {
@@ -373,6 +492,68 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
         )}
       </div>
 
+      {/* Mutual Collaborators */}
+      {mutualCollaborators.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
+          <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+            Mutual Collaborators ({mutualCollaborators.length})
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Your collaborators who also work together
+          </p>
+
+          <div className="space-y-3">
+            {mutualCollaborators.map((mutual, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-800"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="text-center">
+                    <p className="font-medium text-gray-900 dark:text-white text-sm">
+                      {mutual.user1.name}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {mutual.user1.role || 'Developer'}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
+                    <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
+                    <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-medium text-gray-900 dark:text-white text-sm">
+                      {mutual.user2.name}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {mutual.user2.role || 'Developer'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => viewProfile(mutual.user1.id)}
+                    className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
+                  >
+                    View {mutual.user1.name}
+                  </button>
+                  <span className="text-gray-400">|</span>
+                  <button
+                    onClick={() => viewProfile(mutual.user2.id)}
+                    className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
+                  >
+                    View {mutual.user2.name}
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Profile Modal */}
       {showProfileModal && selectedProfile && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -413,6 +594,10 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
                       Joined {selectedProfile.createdAt?.toDate ? 
                         new Date(selectedProfile.createdAt.toDate()).toLocaleDateString() : 
                         'Recently'}
+                    </div>
+                    <div className="flex items-center text-gray-600 dark:text-gray-300">
+                      <Users className="w-4 h-4 mr-2" />
+                      {selectedProfile.collaborationCount || 0} Collaborations
                     </div>
                   </div>
                 </div>

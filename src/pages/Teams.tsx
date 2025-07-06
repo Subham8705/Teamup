@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import { toast } from 'react-hot-toast';
 import { Users, Plus } from 'lucide-react';
 
@@ -70,6 +71,7 @@ interface Invitation {
 
 const Teams: React.FC = () => {
   const { user, userProfile } = useAuth();
+  const { markTeamNotificationsRead } = useNotifications();
   const [activeTab, setActiveTab] = useState('browse');
   const [teams, setTeams] = useState<Team[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -98,6 +100,13 @@ const Teams: React.FC = () => {
       checkTeamCreationCooldown();
     }
   }, [user]);
+
+  // Mark team notifications as read when switching to applications or invites tab
+  useEffect(() => {
+    if (activeTab === 'applications' || activeTab === 'invites') {
+      markTeamNotificationsRead();
+    }
+  }, [activeTab]);
 
   const checkTeamCreationCooldown = async () => {
     if (!user) return;

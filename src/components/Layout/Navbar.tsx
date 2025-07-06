@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { 
   Home, 
   Lightbulb, 
@@ -13,12 +14,14 @@ import {
   Info,
   Menu,
   X,
-  Search
+  Search,
+  Bell
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
+  const { notifications } = useNotifications();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
@@ -34,16 +37,36 @@ const Navbar: React.FC = () => {
   const authenticatedNavItems = [
     { path: '/', label: 'Home', icon: Home },
     { path: '/ideas', label: 'Ideas', icon: Lightbulb },
-    { path: '/teams', label: 'Teams', icon: Users },
+    { 
+      path: '/teams', 
+      label: 'Teams', 
+      icon: Users, 
+      notification: notifications.teams 
+    },
     { path: '/hackathons', label: 'Hackathons', icon: Trophy },
     { path: '/discover', label: 'Discover', icon: Search },
-    { path: '/chat', label: 'Chat', icon: MessageCircle },
+    { 
+      path: '/chat', 
+      label: 'Chat', 
+      icon: MessageCircle, 
+      notification: notifications.chats 
+    },
     { path: '/courses', label: 'Courses', icon: BookOpen },
     { path: '/about', label: 'About', icon: Info },
   ];
 
   // Choose navigation items based on authentication status
   const navItems = user ? authenticatedNavItems : publicNavItems;
+
+  const NotificationBadge: React.FC<{ count: number }> = ({ count }) => {
+    if (count === 0) return null;
+    
+    return (
+      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+        {count > 99 ? '99+' : count}
+      </span>
+    );
+  };
 
   return (
     <nav className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800 w-full sticky top-0 z-50">
@@ -65,13 +88,18 @@ const Navbar: React.FC = () => {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center space-x-1.5 px-3 py-2 rounded-md text-sm transition-all ${
+                className={`relative flex items-center space-x-1.5 px-3 py-2 rounded-md text-sm transition-all ${
                   isActive(item.path)
                     ? 'bg-purple-100/80 dark:bg-purple-900/80 text-purple-700 dark:text-purple-300 font-medium'
                     : 'text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-900/30'
                 }`}
               >
-                <item.icon className="w-4 h-4 flex-shrink-0" />
+                <div className="relative">
+                  <item.icon className="w-4 h-4 flex-shrink-0" />
+                  {'notification' in item && item.notification && (
+                    <NotificationBadge count={item.notification} />
+                  )}
+                </div>
                 <span>{item.label}</span>
               </Link>
             ))}
@@ -84,11 +112,25 @@ const Navbar: React.FC = () => {
               <div className="flex items-center space-x-1">
                 <Link
                   to="/profile"
-                  className="flex items-center space-x-1.5 px-3 py-2 rounded-md text-sm text-gray-600 dark:text-gray-300 hover:bg-purple-50/50 dark:hover:bg-purple-900/30 transition-colors"
+                  className="relative flex items-center space-x-1.5 px-3 py-2 rounded-md text-sm text-gray-600 dark:text-gray-300 hover:bg-purple-50/50 dark:hover:bg-purple-900/30 transition-colors"
                 >
-                  <User className="w-4 h-4" />
+                  <div className="relative">
+                    <User className="w-4 h-4" />
+                    {notifications.collaborations > 0 && (
+                      <NotificationBadge count={notifications.collaborations} />
+                    )}
+                  </div>
                   <span>Profile</span>
                 </Link>
+                
+                {/* Total Notifications Bell */}
+                {notifications.total > 0 && (
+                  <div className="relative p-2">
+                    <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                    <NotificationBadge count={notifications.total} />
+                  </div>
+                )}
+                
                 <button
                   onClick={logout}
                   className="flex items-center space-x-1.5 px-3 py-2 rounded-md text-sm hover:bg-red-50/50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition-colors"
@@ -118,6 +160,12 @@ const Navbar: React.FC = () => {
           {/* Mobile Menu Button & Theme Toggle */}
           <div className="lg:hidden flex items-center space-x-2">
             <ThemeToggle />
+            {user && notifications.total > 0 && (
+              <div className="relative p-2">
+                <Bell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                <NotificationBadge count={notifications.total} />
+              </div>
+            )}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-900/30 transition-colors"
@@ -137,13 +185,18 @@ const Navbar: React.FC = () => {
                   key={item.path}
                   to={item.path}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center space-x-2 px-4 py-2 text-sm ${
+                  className={`relative flex items-center space-x-2 px-4 py-2 text-sm ${
                     isActive(item.path)
                       ? 'bg-purple-100/80 dark:bg-purple-900/80 text-purple-700 dark:text-purple-300'
                       : 'text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-900/30'
                   }`}
                 >
-                  <item.icon className="w-4 h-4" />
+                  <div className="relative">
+                    <item.icon className="w-4 h-4" />
+                    {'notification' in item && item.notification && (
+                      <NotificationBadge count={item.notification} />
+                    )}
+                  </div>
                   <span>{item.label}</span>
                 </Link>
               ))}
@@ -155,9 +208,14 @@ const Navbar: React.FC = () => {
                     <Link
                       to="/profile"
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-purple-50/50 dark:hover:bg-purple-900/30"
+                      className="relative flex items-center space-x-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-purple-50/50 dark:hover:bg-purple-900/30"
                     >
-                      <User className="w-4 h-4" />
+                      <div className="relative">
+                        <User className="w-4 h-4" />
+                        {notifications.collaborations > 0 && (
+                          <NotificationBadge count={notifications.collaborations} />
+                        )}
+                      </div>
                       <span>Profile</span>
                     </Link>
                     <button
