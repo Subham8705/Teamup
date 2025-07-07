@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, User, MessageCircle, Heart, Trash2 } from 'lucide-react';
-import { doc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc, collection, addDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -20,7 +20,8 @@ const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onUpdate }) => {
   const [isLiking, setIsLiking] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { user } = useAuth();
+  const [isJoining, setIsJoining] = useState(false);
+  const { user, userProfile } = useAuth();
 
   useEffect(() => {
     // Check if current user has liked this idea
@@ -78,6 +79,48 @@ const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onUpdate }) => {
       toast.error('Failed to update like');
     } finally {
       setIsLiking(false);
+    }
+  };
+
+  const handleJoinTeam = async () => {
+    if (!user || !userProfile) {
+      toast.error('Please log in to join teams');
+      return;
+    }
+
+    if (user.uid === idea.authorId) {
+      toast.error('You cannot join your own idea team');
+      return;
+    }
+
+    const message = prompt(`Why do you want to join the team for "${idea.title}"?`);
+    if (!message || !message.trim()) {
+      return;
+    }
+
+    setIsJoining(true);
+    try {
+      // Create a collaboration request for this idea
+      await addDoc(collection(db, 'collaborationRequests'), {
+        fromUserId: user.uid,
+        fromUserName: userProfile.name || user.email,
+        fromUserEmail: user.email,
+        toUserId: idea.authorId,
+        toUserName: idea.authorName,
+        ideaId: idea.id,
+        ideaTitle: idea.title,
+        status: 'pending',
+        message: message.trim(),
+        type: 'idea_collaboration',
+        createdAt: new Date().toISOString()
+      });
+
+      toast.success(`Join request sent to ${idea.authorName}!`);
+    } catch (error) {
+      console.error('Error sending join request:', error);
+      toast.error('Failed to send join request');
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -196,9 +239,25 @@ const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onUpdate }) => {
                 <span>{commentsCount} {commentsCount === 1 ? 'comment' : 'comments'}</span>
               </button>
             </div>
-            <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 text-sm font-medium">
-              Join Team
-            </button>
+            {!isAuthor && (
+              <button 
+                onClick={handleJoinTeam}
+                disabled={isJoining}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {isJoining ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Sending...
+                  </>
+                ) : (
+                  'Join Team'
+                )}
+              </button>
+            )}
+            {isAuthor && (
+              <span className="text-sm text-gray-500 dark:text-gray-400 italic">Your idea</span>
+            )}
           </div>
         </div>
       </motion.div>
