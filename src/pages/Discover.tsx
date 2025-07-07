@@ -813,6 +813,10 @@ const Discover: React.FC = () => {
                           portfolio: dev.portfolio || ''
                         });
                         setShowForm(true);
+                        window.scrollTo({
+                          top: 0,
+                          behavior: 'smooth' // Optional: adds smooth scrolling animation
+                        });
                       }}
                       className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       aria-label="Edit profile"

@@ -39,7 +39,7 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSuccess 
         createdAt: new Date().toISOString(),
         likes: 0,
         comments: 0,
-        interestedUsers: []
+        likedBy: []
       });
 
       toast.success('Idea shared successfully!');
@@ -48,6 +48,18 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSuccess 
     } catch (error) {
       console.error('Error creating idea:', error);
       toast.error('Failed to share idea');
+    }
+  };
+
+  const handleTagClick = (tag: string) => {
+    // Add tag to the input field
+    const currentTags = document.getElementById('tags') as HTMLInputElement;
+    const currentValue = currentTags.value;
+    const tagsArray = currentValue.split(',').map(t => t.trim()).filter(t => t);
+    
+    if (!tagsArray.includes(tag)) {
+      const newValue = tagsArray.length > 0 ? `${currentValue}, ${tag}` : tag;
+      currentTags.value = newValue;
     }
   };
 
@@ -114,18 +126,21 @@ const NewIdeaModal: React.FC<NewIdeaModalProps> = ({ isOpen, onClose, onSuccess 
               </label>
               <input
                 {...register('tags', { required: 'Tags are required' })}
+                id="tags"
                 type="text"
                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 placeholder="e.g., AI, Web Development, Mobile App (comma-separated)"
               />
               <div className="mt-2 flex flex-wrap gap-2">
                 {allTags.map(tag => (
-                  <span
+                  <button
                     key={tag}
+                    type="button"
+                    onClick={() => handleTagClick(tag)}
                     className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium cursor-pointer hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors"
                   >
                     {tag}
-                  </span>
+                  </button>
                 ))}
               </div>
               {errors.tags && (

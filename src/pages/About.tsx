@@ -20,7 +20,7 @@ const About: React.FC = () => {
       name: 'Nikhil Pabbisetti',
       role: 'Co-Founder & CEO',
       bio: 'Full-stack developer with 1+ years experience. Passionate about building platforms that connect creative minds.',
-      image: 'https://res.cloudinary.com/dfc8a9imb/image/upload/c_crop,w_320,h_400,g_auto/v1751541568/profile_xzc4h2.jpg',
+      image: 'https://res.cloudinary.com/dfc8a9imb/image/upload/c_fill,w_600,h_600,g_auto/v1751890164/nikhil_photooo-removebg-preview_1_iefmlb.png',
       github: 'https://github.com/Nikhil-p570',
       linkedin: 'https://www.linkedin.com/in/nikhil-pabbisetti/',
       email: 'nikhil.pabbisetti2006@gmail.com'

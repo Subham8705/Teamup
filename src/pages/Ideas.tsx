@@ -75,6 +75,10 @@ const Ideas: React.FC = () => {
     );
   };
 
+  const handleIdeaUpdate = () => {
+    fetchIdeas();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center transition-colors duration-300">
@@ -170,7 +174,7 @@ const Ideas: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
             >
-              <IdeaCard idea={idea} />
+              <IdeaCard idea={idea} onUpdate={handleIdeaUpdate} />
             </motion.div>
           ))}
         </div>

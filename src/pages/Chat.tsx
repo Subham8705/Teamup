@@ -48,6 +48,7 @@ const ChatPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [currentChatInfo, setCurrentChatInfo] = useState<Chat | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Check for URL parameters to auto-start chat
   useEffect(() => {
@@ -71,7 +72,6 @@ const ChatPage: React.FC = () => {
       const chatId = [user.uid, targetUserId].sort().join('_');
       const chatRef = doc(db, 'chats', chatId);
       
-      // Create chat document if it doesn't exist
       await setDoc(chatRef, {
         id: chatId,
         type: 'direct',
@@ -82,8 +82,6 @@ const ChatPage: React.FC = () => {
       }, { merge: true });
       
       setSelectedChat(chatId);
-      
-      // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error) {
       console.error('Error starting chat:', error);
@@ -94,7 +92,6 @@ const ChatPage: React.FC = () => {
     if (!user) return;
     
     try {
-      // Check if user is a member of this team
       const teamDoc = await getDoc(doc(db, 'teams', teamId));
       if (!teamDoc.exists()) {
         console.error('Team not found');
@@ -108,8 +105,6 @@ const ChatPage: React.FC = () => {
       }
 
       await startTeamChat(teamId, teamName);
-      
-      // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error) {
       console.error('Error starting team chat:', error);
@@ -118,10 +113,8 @@ const ChatPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedChat) {
-      // Load chat info
       loadChatInfo(selectedChat);
       
-      // Listen to messages
       const messagesQuery = query(
         collection(db, 'chats', selectedChat, 'messages'),
         orderBy('timestamp', 'asc')
@@ -141,7 +134,14 @@ const ChatPage: React.FC = () => {
   }, [selectedChat]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      
+      if (isNearBottom) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   }, [messages]);
 
   const loadChatInfo = async (chatId: string) => {
@@ -197,7 +197,6 @@ const ChatPage: React.FC = () => {
     if (currentChatInfo.type === 'team') {
       return `${currentChatInfo.teamName} (Team Chat)`;
     } else {
-      // For direct chats, show the other person's name
       const otherUserName = currentChatInfo.memberNames?.find(name => 
         name !== userProfile?.name && name !== user?.email
       );
@@ -219,23 +218,16 @@ const ChatPage: React.FC = () => {
               <p className="text-gray-600 dark:text-gray-400">Connect with your collaborators and team members</p>
             </div>
           </div>
-          <button
-            onClick={logout}
-            className="flex items-center space-x-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
         </div>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-12rem)]">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ height: 'calc(100vh - 12rem)' }}>
           {/* Sidebar */}
           <div className="lg:col-span-1">
             <UserList />
           </div>
 
-          {/* Messages */}
+          {/* Chat Area */}
           <div className="lg:col-span-2">
             {selectedChat ? (
               <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
@@ -251,19 +243,24 @@ const ChatPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 dark:bg-gray-900">
+                {/* Messages Container */}
+                <div 
+                  ref={messagesContainerRef}
+                  className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4 bg-gray-50 dark:bg-gray-900"
+                >
                   {messages.length === 0 ? (
-                    <div className="text-center py-12">
-                      <div className="bg-gray-200 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <MessageCircle className="w-8 h-8 text-gray-400" />
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center py-12">
+                        <div className="bg-gray-200 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <MessageCircle className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <p className="text-gray-500 dark:text-gray-400">
+                          {currentChatInfo?.type === 'team' 
+                            ? 'Start collaborating with your team!' 
+                            : 'No messages yet. Start the conversation!'
+                          }
+                        </p>
                       </div>
-                      <p className="text-gray-500 dark:text-gray-400">
-                        {currentChatInfo?.type === 'team' 
-                          ? 'Start collaborating with your team!' 
-                          : 'No messages yet. Start the conversation!'
-                        }
-                      </p>
                     </div>
                   ) : (
                     messages.map((msg) => (
@@ -278,7 +275,6 @@ const ChatPage: React.FC = () => {
                               : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600'
                           }`}
                         >
-                          {/* Show sender name for team chats */}
                           {currentChatInfo?.type === 'team' && msg.senderId !== user?.uid && (
                             <p className="text-xs font-medium mb-1 text-purple-600 dark:text-purple-400">
                               {msg.senderName}
