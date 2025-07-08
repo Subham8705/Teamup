@@ -429,7 +429,7 @@ const UserList: React.FC = () => {
                       </span>
                     </div>
                     <p className={`text-xs truncate ${
-                      chat.unseenCount > 0 ? 'text-gray-700 dark:text-red-300 font-medium' : 'text-gray-500 dark:text-gray-400'
+                      chat.unseenCount > 0 ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-500 dark:text-gray-400'
                     }`}>
                       {chat.lastMessage}
                     </p>

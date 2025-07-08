@@ -19,8 +19,6 @@ import {
   getDoc,
   deleteDoc,
   writeBatch
-  getDoc,
-  limit
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import MessageLayout from '../components/Chatsrelated/MessageLayout';
@@ -136,11 +134,6 @@ const ChatPage: React.FC = () => {
       setCurrentChatInfo(null);
     }
   }, [selectedChat]);
-
-  useEffect(() => {
-    // Always scroll to bottom when new messages arrive
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
   const loadChatInfo = async (chatId: string) => {
     try {
@@ -291,10 +284,6 @@ const ChatPage: React.FC = () => {
       {/* Fixed Header */}
       <div className="flex-shrink-0 p-6 pb-4">
         <div className="flex items-center justify-between">
-    <div className="h-screen bg-gradient-to-br from-purple-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex flex-col">
-      <div className="max-w-7xl mx-auto p-6 flex-1 flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6 flex-shrink-0">
           <div className="flex items-center space-x-3">
             <div className="bg-gradient-to-r from-purple-600 to-indigo-600 w-12 h-12 rounded-full flex items-center justify-center shadow-lg">
               <MessageCircle className="w-6 h-6 text-white" />
@@ -336,17 +325,11 @@ const ChatPage: React.FC = () => {
         <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* User List - Hidden on mobile when chat is selected */}
           <div className={`lg:col-span-1 ${selectedChat && !showMobileUserList ? 'hidden lg:block' : ''}`}>
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-          {/* Sidebar */}
-          <div className="lg:col-span-1 flex flex-col min-h-0">
             <UserList />
           </div>
 
           {/* Chat Interface */}
           <div className={`lg:col-span-2 ${!selectedChat && !showMobileUserList ? 'hidden lg:block' : ''}`}>
-          {/* Chat Area */}
-          <div className="lg:col-span-2 flex flex-col min-h-0">
             {selectedChat ? (
               <MessageLayout
                 messages={messages}
@@ -358,104 +341,6 @@ const ChatPage: React.FC = () => {
               />
             ) : (
               <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg h-full flex items-center justify-center">
-              <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
-                {/* Chat Header */}
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {getChatTitle()}
-                  </h3>
-                  {currentChatInfo?.type === 'team' && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Team collaboration space
-                    </p>
-                  )}
-                </div>
-
-                {/* Messages Container */}
-                <div 
-                  ref={messagesContainerRef}
-                  className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 dark:bg-gray-900"
-                >
-                  {messages.length === 0 ? (
-                    <div className="h-full flex items-center justify-center">
-                      <div className="text-center py-12">
-                        <div className="bg-gray-200 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <MessageCircle className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <p className="text-gray-500 dark:text-gray-400">
-                          {currentChatInfo?.type === 'team' 
-                            ? 'Start collaborating with your team!' 
-                            : 'No messages yet. Start the conversation!'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex ${msg.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-sm ${
-                            msg.senderId === user?.uid
-                              ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
-                              : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600'
-                          }`}
-                        >
-                          {currentChatInfo?.type === 'team' && msg.senderId !== user?.uid && (
-                            <p className="text-xs font-medium mb-1 text-purple-600 dark:text-purple-400">
-                              {msg.senderName}
-                            </p>
-                          )}
-                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                          <div className="flex items-center justify-end space-x-1 mt-2">
-                            <span className={`text-xs ${
-                              msg.senderId === user?.uid ? 'text-purple-200' : 'text-gray-500 dark:text-gray-400'
-                            }`}>
-                              {msg.timestamp?.seconds ? 
-                                new Date(msg.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) :
-                                'Sending...'
-                              }
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  <div ref={bottomRef} />
-                </div>
-
-                {/* Input */}
-                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
-                  <div className="flex items-end space-x-4">
-                    <div className="flex-1">
-                      <textarea
-                        value={messageText}
-                        onChange={(e) => setMessageText(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            sendMessage();
-                          }
-                        }}
-                        placeholder={`Message ${getChatTitle()}...`}
-                        rows={1}
-                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-colors max-h-32"
-                      />
-                    </div>
-                    <button
-                      onClick={sendMessage}
-                      disabled={!messageText.trim() || loading}
-                      className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <MessageCircle className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg flex items-center justify-center">
                 <div className="text-center">
                   <div className="w-20 h-20 bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
                     <MessageCircle className="w-10 h-10 text-purple-600 dark:text-purple-400" />
@@ -466,6 +351,12 @@ const ChatPage: React.FC = () => {
                   <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md">
                     Select a conversation from the sidebar or search for users to start chatting
                   </p>
+                  <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                    <p>✨ Real-time messaging</p>
+                    <p>🔒 Private and secure</p>
+                    <p>👥 Team collaboration</p>
+                    <p>📱 Mobile responsive</p>
+                  </div>
                 </div>
               </div>
             )}
