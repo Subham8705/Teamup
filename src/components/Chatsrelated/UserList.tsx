@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Lock, MessageCircle } from 'lucide-react';
+import { 
+  Search, 
+  Lock, 
+  MessageCircle, 
+  Users, 
+  Clock, 
+  User,
+  Loader2
+} from 'lucide-react';
 import {
   collection,
   query,
@@ -7,10 +15,13 @@ import {
   getDocs,
   doc,
   getDoc,
-  onSnapshot
+  onSnapshot,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useChatContext } from '../../contexts/ChatContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 
 interface User {
@@ -19,73 +30,61 @@ interface User {
   avatar: string;
   email: string;
   profileVisibility?: string;
+  isOnline?: boolean;
+  lastSeen?: Date;
+}
+
+interface Chat {
+  id: string;
+  type: 'direct' | 'team';
+  name: string;
+  avatar: string;
+  lastMessage: string;
+  updatedAt: Date;
+  unseenCount: number;
+  isOnline?: boolean;
 }
 
 const UserList: React.FC = () => {
   const [search, setSearch] = useState('');
   const [users, setUsers] = useState<User[]>([]);
+  const [recentChats, setRecentChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'recent' | 'search'>('recent');
   const [collaborators, setCollaborators] = useState<Set<string>>(new Set());
   const [teamMembers, setTeamMembers] = useState<Set<string>>(new Set());
-  const { currentUser, startChat } = useChatContext();
+  const { selectedChat, setSelectedChat, startChat } = useChatContext();
+  const { user: currentUser, userProfile } = useAuth();
 
-  const handleSearch = async () => {
-    if (!search.trim()) {
-      setUsers([]);
-      return;
+  // Load collaborators and team members
+  useEffect(() => {
+    if (currentUser) {
+      loadCollaborators();
+      loadTeamMembers();
     }
+  }, [currentUser]);
 
-    setLoading(true);
-    try {
-      const q = query(
-        collection(db, 'users'),
-        where('name', '>=', search),
-        where('name', '<=', search + '\uf8ff')
-      );
-      const querySnapshot = await getDocs(q);
-      const results: User[] = querySnapshot.docs
-        .map((doc) => ({ id: doc.id, ...(doc.data() as User) }))
-        .filter((u) => u.id !== currentUser?.uid);
-      
-      setUsers(results);
-    } catch (error) {
-      console.error('Error searching users:', error);
-      toast.error('Failed to search users');
-    } finally {
+  // Load recent chats
+  useEffect(() => {
+    if (currentUser && activeTab === 'recent') {
+      loadRecentChats();
+    }
+  }, [currentUser, activeTab]);
+
+  // Handle search
+  useEffect(() => {
+    if (search.trim()) {
+      setActiveTab('search');
+      const delay = setTimeout(() => {
+        handleSearch();
+      }, 300);
+      return () => clearTimeout(delay);
+    } else {
+      setActiveTab('recent');
+      setUsers([]);
       setLoading(false);
     }
-  };
-
-  const loadRecentChats = async () => {
-    if (!currentUser) return;
-    
-    try {
-      const chatQuery = query(collection(db, 'chats'));
-      const chatSnapshot = await getDocs(chatQuery);
-      const otherUserIds: Set<string> = new Set();
-
-      chatSnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.members?.includes(currentUser.uid)) {
-          data.members.forEach((id: string) => {
-            if (id !== currentUser.uid) otherUserIds.add(id);
-          });
-        }
-      });
-
-      const promises = Array.from(otherUserIds).map(async (uid) => {
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        if (userDoc.exists()) {
-          return { id: uid, ...(userDoc.data() as User) };
-        }
-      });
-
-      const results = (await Promise.all(promises)).filter(Boolean) as User[];
-      setUsers(results);
-    } catch (error) {
-      console.error('Error loading recent chats:', error);
-    }
-  };
+  }, [search]);
 
   const loadCollaborators = async () => {
     if (!currentUser) return;
@@ -128,7 +127,6 @@ const UserList: React.FC = () => {
     if (!currentUser) return;
 
     try {
-      // Get all teams where user is a member
       const teamsQuery = query(
         collection(db, 'teams'),
         where('members', 'array-contains', currentUser.uid)
@@ -152,21 +150,126 @@ const UserList: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (currentUser) {
-      loadCollaborators();
-      loadTeamMembers();
-    }
-  }, [currentUser]);
+  const loadRecentChats = async () => {
+    if (!currentUser) return;
 
-  useEffect(() => {
-    if (search.trim()) {
-      const delay = setTimeout(() => handleSearch(), 300);
-      return () => clearTimeout(delay);
-    } else {
-      loadRecentChats();
+    try {
+      const chatsQuery = query(
+        collection(db, 'chats'),
+        where('members', 'array-contains', currentUser.uid),
+        orderBy('updatedAt', 'desc'),
+        limit(20)
+      );
+      
+      const unsubscribe = onSnapshot(chatsQuery, async (snapshot) => {
+        const chats: Chat[] = [];
+        
+        for (const docSnap of snapshot.docs) {
+          const chatData = docSnap.data();
+          
+          if (chatData.type === 'direct') {
+            // Get other user's info
+            const otherUserId = chatData.members.find((id: string) => id !== currentUser.uid);
+            if (otherUserId) {
+              const userDoc = await getDoc(doc(db, 'users', otherUserId));
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                chats.push({
+                  id: docSnap.id,
+                  type: 'direct',
+                  name: userData.name || userData.email,
+                  avatar: userData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || userData.email)}&background=6366f1&color=fff`,
+                  lastMessage: chatData.lastMessage || '',
+                  updatedAt: chatData.updatedAt?.toDate() || new Date(),
+                  unseenCount: 0, // Will be calculated separately
+                  isOnline: userData.isOnline || false
+                });
+              }
+            }
+          } else if (chatData.type === 'team') {
+            chats.push({
+              id: docSnap.id,
+              type: 'team',
+              name: chatData.teamName,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatData.teamName)}&background=6366f1&color=fff`,
+              lastMessage: chatData.lastMessage || '',
+              updatedAt: chatData.updatedAt?.toDate() || new Date(),
+              unseenCount: 0, // Will be calculated separately
+              isOnline: true
+            });
+          }
+        }
+        
+        // Sort by unseen count first, then by update time
+        chats.sort((a, b) => {
+          if (a.unseenCount !== b.unseenCount) {
+            return b.unseenCount - a.unseenCount;
+          }
+          return b.updatedAt.getTime() - a.updatedAt.getTime();
+        });
+        
+        setRecentChats(chats);
+      });
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error loading recent chats:', error);
     }
-  }, [search, currentUser]);
+  };
+
+  const handleSearch = async () => {
+    if (!search.trim()) {
+      setUsers([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Search by name
+      const nameQuery = query(
+        collection(db, 'users'),
+        where('name', '>=', search),
+        where('name', '<=', search + '\uf8ff'),
+        limit(10)
+      );
+      
+      // Search by email
+      const emailQuery = query(
+        collection(db, 'users'),
+        where('email', '>=', search.toLowerCase()),
+        where('email', '<=', search.toLowerCase() + '\uf8ff'),
+        limit(10)
+      );
+
+      const [nameSnapshot, emailSnapshot] = await Promise.all([
+        getDocs(nameQuery),
+        getDocs(emailQuery)
+      ]);
+
+      const userMap = new Map<string, User>();
+      
+      // Add users from name search
+      nameSnapshot.docs.forEach(doc => {
+        if (doc.id !== currentUser?.uid) {
+          userMap.set(doc.id, { id: doc.id, ...doc.data() } as User);
+        }
+      });
+      
+      // Add users from email search
+      emailSnapshot.docs.forEach(doc => {
+        if (doc.id !== currentUser?.uid) {
+          userMap.set(doc.id, { id: doc.id, ...doc.data() } as User);
+        }
+      });
+      
+      setUsers(Array.from(userMap.values()));
+    } catch (error) {
+      console.error('Error searching users:', error);
+      toast.error('Failed to search users');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const canMessageUser = (user: User) => {
     // If user has public profile or no visibility setting (default to public), anyone can message
@@ -210,6 +313,32 @@ const UserList: React.FC = () => {
     startChat(user);
   };
 
+  const handleChatClick = (chat: Chat) => {
+    setSelectedChat(chat.id);
+  };
+
+  const formatTimestamp = (timestamp: Date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes}m ago`;
+    } else if (diffInMinutes < 1440) {
+      return `${Math.floor(diffInMinutes / 60)}h ago`;
+    } else {
+      return timestamp.toLocaleDateString();
+    }
+  };
+
+  const getOnlineStatus = (user: User) => {
+    if (user.isOnline) {
+      return <div className="w-3 h-3 bg-green-500 rounded-full"></div>;
+    } else if (user.lastSeen) {
+      return <div className="w-3 h-3 bg-gray-400 rounded-full"></div>;
+    }
+    return null;
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden h-full flex flex-col">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -224,82 +353,184 @@ const UserList: React.FC = () => {
           />
         </div>
 
-        <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-          {search.trim() ? 'Search Results' : 'Recent Chats'}
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={() => setActiveTab('recent')}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'recent'
+                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Recent</span>
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('search')}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'search'
+                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Search</span>
+          </button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="p-4 space-y-2">
-          {loading ? (
-            <p className="text-gray-500 text-sm text-center py-4">Searching...</p>
-          ) : users.length === 0 ? (
-            <div className="text-center py-8">
-              <MessageCircle className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-500 text-sm">
-                {search.trim() ? 'No users found' : 'No recent chats'}
-              </p>
-              {search.trim() && (
+        {activeTab === 'recent' ? (
+          <div className="p-4 space-y-2">
+            {recentChats.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageCircle className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-500 text-sm">No recent chats</p>
                 <p className="text-xs text-gray-400 mt-2">
-                  Try searching for someone's username to start a conversation
+                  Search for users to start a conversation
                 </p>
-              )}
-            </div>
-          ) : (
-            users.map((user) => {
-              const canMessage = canMessageUser(user);
-              const relationshipLabel = getRelationshipLabel(user);
-              
-              return (
+              </div>
+            ) : (
+              recentChats.map((chat) => (
                 <div
-                  key={user.id}
-                  onClick={() => handleStartChat(user)}
-                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
-                    canMessage 
-                      ? 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer' 
-                      : 'opacity-60 cursor-not-allowed'
+                  key={chat.id}
+                  onClick={() => handleChatClick(chat)}
+                  className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                    selectedChat === chat.id
+                      ? 'bg-purple-100 dark:bg-purple-900/30'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
                   <div className="relative">
                     <img
-                      src={user.avatar || '/default-avatar.png'}
-                      alt={user.name}
+                      src={chat.avatar}
+                      alt={chat.name}
                       className="w-10 h-10 rounded-full object-cover"
                     />
-                    {!canMessage && (
-                      <div className="absolute -top-1 -right-1 bg-orange-500 rounded-full p-1">
-                        <Lock className="w-3 h-3 text-white" />
+                    {chat.isOnline && (
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+                    )}
+                    {chat.unseenCount > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {chat.unseenCount > 9 ? '9+' : chat.unseenCount}
                       </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {user.name}
+                    <div className="flex items-center justify-between">
+                      <p className={`text-sm font-medium truncate ${
+                        chat.unseenCount > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'
+                      }`}>
+                        {chat.name}
                       </p>
-                      {relationshipLabel && (
-                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
-                          {relationshipLabel}
-                        </span>
-                      )}
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {formatTimestamp(chat.updatedAt)}
+                      </span>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {user.email}
+                    <p className={`text-xs truncate ${
+                      chat.unseenCount > 0 ? 'text-gray-700 dark:text-red-300 font-medium' : 'text-gray-500 dark:text-gray-400'
+                    }`}>
+                      {chat.lastMessage}
                     </p>
-                    {!canMessage && (
-                      <p className="text-xs text-orange-600 dark:text-orange-400">
-                        {teamMembers.has(user.id) 
-                          ? 'Private profile - use team chat'
-                          : 'Private profile - collaborate first'
-                        }
-                      </p>
+                    {chat.type === 'team' && (
+                      <div className="flex items-center space-x-1 mt-1">
+                        <Users className="w-3 h-3 text-purple-500" />
+                        <span className="text-xs text-purple-600 dark:text-purple-400">Team Chat</span>
+                      </div>
                     )}
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="p-4 space-y-2">
+            {loading ? (
+              <div className="text-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600 mb-4" />
+                <p className="text-gray-500 text-sm">Searching users...</p>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-8">
+                <User className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-500 text-sm">
+                  {search.trim() ? 'No users found' : 'Start typing to search users'}
+                </p>
+                {search.trim() && (
+                  <p className="text-xs text-gray-400 mt-2">
+                    Try searching for someone's username or email
+                  </p>
+                )}
+              </div>
+            ) : (
+              users.map((user) => {
+                const canMessage = canMessageUser(user);
+                const relationshipLabel = getRelationshipLabel(user);
+                
+                return (
+                  <div
+                    key={user.id}
+                    onClick={() => handleStartChat(user)}
+                    className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                      canMessage 
+                        ? 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer' 
+                        : 'opacity-60 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="relative">
+                      <img
+                        src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`}
+                        alt={user.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                      {user.isOnline && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+                      )}
+                      {!canMessage && (
+                        <div className="absolute -top-1 -right-1 bg-orange-500 rounded-full p-1">
+                          <Lock className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {user.name}
+                        </p>
+                        {relationshipLabel && (
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
+                            {relationshipLabel}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {user.email}
+                        </p>
+                        {user.isOnline ? (
+                          <span className="text-xs text-green-600 dark:text-green-400">Online</span>
+                        ) : user.lastSeen ? (
+                          <span className="text-xs text-gray-400">
+                            Last seen {formatTimestamp(user.lastSeen)}
+                          </span>
+                        ) : null}
+                      </div>
+                      {!canMessage && (
+                        <p className="text-xs text-orange-600 dark:text-orange-400">
+                          {teamMembers.has(user.id) 
+                            ? 'Private profile - use team chat'
+                            : 'Private profile - collaborate first'
+                          }
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,119 +1,335 @@
-import React, { RefObject } from 'react';
-import { Send, Clock, Check, CheckCheck } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Send, 
+  Trash2, 
+  MoreVertical, 
+  ArrowDown,
+  AlertTriangle
+} from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Message {
   id: string;
   senderId: string;
+  senderName: string;
   content: string;
   timestamp: any;
   seen: boolean;
 }
 
-interface Props {
-  chats: Message[];
-  onSend: () => void;
-  messageText: string;
-  setMessageText: (msg: string) => void;
-  bottomRef: RefObject<HTMLDivElement>;
-  currentUser: any;
+interface MessageLayoutProps {
+  messages: Message[];
+  onSendMessage: (message: string) => void;
+  onDeleteMessage: (messageId: string) => void;
+  loading: boolean;
+  chatTitle: string;
+  onClearChat: () => void;
 }
 
-const MessageLayout: React.FC<Props> = ({ 
-  chats, 
-  onSend, 
-  messageText, 
-  setMessageText, 
-  bottomRef, 
-  currentUser 
+const MessageLayout: React.FC<MessageLayoutProps> = ({
+  messages,
+  onSendMessage,
+  onDeleteMessage,
+  loading,
+  chatTitle,
+  onClearChat
 }) => {
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      onSend();
+  const { user } = useAuth();
+  const [messageText, setMessageText] = useState('');
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollDown(!isNearBottom);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      if (isNearBottom) {
+        scrollToBottom();
+      }
+    }
+  }, [messages]);
+
+  const handleSendMessage = () => {
+    if (messageText.trim()) {
+      onSendMessage(messageText.trim());
+      setMessageText('');
     }
   };
 
-  const formatTime = (timestamp: any) => {
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const formatTimestamp = (timestamp: any) => {
     if (!timestamp) return '';
-    const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp);
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const handleDeleteClick = (messageId: string) => {
+    setMessageToDelete(messageId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = () => {
+    if (messageToDelete) {
+      onDeleteMessage(messageToDelete);
+      setMessageToDelete(null);
+      setShowDeleteModal(false);
+    }
+  };
+
+  const handleClearChat = () => {
+    setShowClearModal(true);
+  };
+
+  const confirmClearChat = () => {
+    onClearChat();
+    setShowClearModal(false);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Chat</h3>
+    <div className="h-full flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
+      {/* 🟦 Fixed Top Bar (Profile/Title) */}
+      <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-t-2xl">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+            <span className="text-white font-medium">
+              {chatTitle.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white">{chatTitle}</h2>
+            <p className="text-sm text-purple-100">
+              {messages.length > 0 ? `${messages.length} messages` : 'No messages yet'}
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleClearChat}
+            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            title="Clear chat"
+          >
+            <Trash2 className="w-5 h-5 text-white" />
+          </button>
+          <button className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+            <MoreVertical className="w-5 h-5 text-white" />
+          </button>
+        </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 dark:bg-gray-900">
-        {chats.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="bg-gray-200 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Send className="w-8 h-8 text-gray-400" />
-            </div>
-            <p className="text-gray-500 dark:text-gray-400">No messages yet. Start the conversation!</p>
-          </div>
-        ) : (
-          chats.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.senderId === currentUser?.uid ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-sm ${
-                  msg.senderId === currentUser?.uid
-                    ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white'
-                    : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600'
-                }`}
-              >
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                <div className="flex items-center justify-end space-x-1 mt-2">
-                  <span className={`text-xs ${
-                    msg.senderId === currentUser?.uid ? 'text-purple-200' : 'text-gray-500 dark:text-gray-400'
-                  }`}>
-                    {formatTime(msg.timestamp)}
-                  </span>
-                  {msg.senderId === currentUser?.uid && (
-                    <div className="ml-1">
-                      {msg.seen ? (
-                        <CheckCheck className="w-3 h-3 text-purple-200" />
-                      ) : (
-                        <Check className="w-3 h-3 text-purple-200" />
-                      )}
-                    </div>
-                  )}
+      {/* 📱 Inner Scrollable Message Area */}
+      <div className="flex-1 relative bg-gray-50 dark:bg-gray-900">
+        <div 
+          ref={messagesContainerRef}
+          className="absolute inset-0 overflow-y-auto p-4 space-y-4"
+          style={{ scrollBehavior: 'smooth' }}
+        >
+          {messages.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Send className="w-8 h-8 text-purple-600 dark:text-purple-400" />
                 </div>
+                <p className="text-gray-500 dark:text-gray-400">No messages yet</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                  Send a message to start the conversation
+                </p>
               </div>
             </div>
-          ))
+          ) : (
+            <>
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.senderId === user?.uid ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[70%] relative group ${
+                      message.senderId === user?.uid
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700'
+                    } rounded-2xl px-4 py-3 shadow-sm`}
+                  >
+                    {message.senderId !== user?.uid && (
+                      <p className="text-xs font-medium mb-1 opacity-70">
+                        {message.senderName}
+                      </p>
+                    )}
+                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs opacity-70">
+                        {formatTimestamp(message.timestamp)}
+                      </span>
+                      {message.senderId === user?.uid && (
+                        <div className="flex items-center space-x-1">
+                          <span className="text-xs opacity-70">
+                            {message.seen ? 'Seen' : 'Sent'}
+                          </span>
+                          <div className={`w-2 h-2 rounded-full ${
+                            message.seen ? 'bg-green-400' : 'bg-gray-400'
+                          }`} />
+                        </div>
+                      )}
+                    </div>
+                    
+                    {message.senderId === user?.uid && (
+                      <button
+                        onClick={() => handleDeleteClick(message.id)}
+                        className="absolute -left-10 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full"
+                        title="Delete message"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </>
+          )}
+        </div>
+
+        {/* Scroll to bottom button */}
+        {showScrollDown && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-4 right-4 bg-purple-600 text-white p-3 rounded-full shadow-lg hover:bg-purple-700 transition-colors z-10"
+          >
+            <ArrowDown className="w-5 h-5" />
+          </button>
         )}
-        <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <div className="flex items-end space-x-4">
-          <div className="flex-1">
+      {/* ⌨️ Fixed Typing Box */}
+      <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-2xl">
+        <div className="flex items-end space-x-3">
+          <div className="flex-1 relative">
             <textarea
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type your message..."
+              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none min-h-[44px] max-h-32 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
               rows={1}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-colors"
+              style={{ 
+                height: 'auto',
+                minHeight: '44px',
+                maxHeight: '128px'
+              }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = Math.min(target.scrollHeight, 128) + 'px';
+              }}
             />
           </div>
           <button
-            onClick={onSend}
-            disabled={!messageText.trim()}
-            className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleSendMessage}
+            disabled={!messageText.trim() || loading}
+            className={`p-3 rounded-full transition-all duration-200 ${
+              messageText.trim() && !loading
+                ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
+                : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'
+            }`}
           >
             <Send className="w-5 h-5" />
           </button>
         </div>
       </div>
+
+      {/* Delete Message Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Delete Message
+              </h3>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to delete this message? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Chat Modal */}
+      {showClearModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Clear Chat
+              </h3>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to clear all messages in this chat? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmClearChat}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Clear Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
