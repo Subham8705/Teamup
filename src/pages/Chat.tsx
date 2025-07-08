@@ -66,13 +66,20 @@ const ChatPage: React.FC = () => {
       const chatId = [user.uid, targetUserId].sort().join('_');
       const chatRef = doc(db, 'chats', chatId);
       
+      // Get target user info
+      const targetUserDoc = await getDoc(doc(db, 'users', targetUserId));
+      const targetUserData = targetUserDoc.data();
+      
       await setDoc(chatRef, {
         id: chatId,
         type: 'direct',
         members: [user.uid, targetUserId],
-        memberNames: [userProfile.name || user.email, targetUserName],
+        memberNames: [userProfile.name || user.email, targetUserData?.name || targetUserName],
+        memberEmails: [user.email, targetUserData?.email || ''],
         lastMessage: '',
-        updatedAt: serverTimestamp()
+        lastMessageSender: '',
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp()
       }, { merge: true });
       
       setSelectedChat(chatId);
@@ -183,13 +190,14 @@ const ChatPage: React.FC = () => {
         seen: false
       });
       
-      // Update chat's last message
+      // Update chat's last message and bring it to top
       await updateDoc(doc(db, 'chats', selectedChat), {
         lastMessage: messageContent.trim(),
+        lastMessageSender: user.uid,
+        lastMessageSenderName: userProfile.name || user.email,
         updatedAt: serverTimestamp()
       });
       
-      toast.success('Message sent');
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
@@ -227,6 +235,8 @@ const ChatPage: React.FC = () => {
       // Update chat's last message
       batch.update(doc(db, 'chats', selectedChat), {
         lastMessage: '',
+        lastMessageSender: '',
+        lastMessageSenderName: '',
         updatedAt: serverTimestamp()
       });
       
@@ -280,7 +290,7 @@ const ChatPage: React.FC = () => {
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-purple-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-purple-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex flex-col overflow-hidden">
       {/* Fixed Header */}
       <div className="flex-shrink-0 p-6 pb-4">
         <div className="flex items-center justify-between">
@@ -320,8 +330,8 @@ const ChatPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Fixed Chat Container */}
-      <div className="flex-1 px-6 pb-6 overflow-hidden">
+      {/* Chat Container */}
+      <div className="flex-1 px-6 pb-6 min-h-0">
         <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* User List - Hidden on mobile when chat is selected */}
           <div className={`lg:col-span-1 ${selectedChat && !showMobileUserList ? 'hidden lg:block' : ''}`}>

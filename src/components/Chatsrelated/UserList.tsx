@@ -40,9 +40,13 @@ interface Chat {
   name: string;
   avatar: string;
   lastMessage: string;
+  lastMessageSender?: string;
+  lastMessageSenderName?: string;
   updatedAt: Date;
   unseenCount: number;
   isOnline?: boolean;
+  members?: string[];
+  memberNames?: string[];
 }
 
 const UserList: React.FC = () => {
@@ -64,10 +68,11 @@ const UserList: React.FC = () => {
     }
   }, [currentUser]);
 
-  // Load recent chats
+  // Load recent chats with real-time updates
   useEffect(() => {
     if (currentUser && activeTab === 'recent') {
-      loadRecentChats();
+      const unsubscribe = loadRecentChats();
+      return unsubscribe;
     }
   }, [currentUser, activeTab]);
 
@@ -150,15 +155,14 @@ const UserList: React.FC = () => {
     }
   };
 
-  const loadRecentChats = async () => {
+  const loadRecentChats = () => {
     if (!currentUser) return;
 
     try {
       const chatsQuery = query(
         collection(db, 'chats'),
         where('members', 'array-contains', currentUser.uid),
-        orderBy('updatedAt', 'desc'),
-        limit(20)
+        orderBy('updatedAt', 'desc')
       );
       
       const unsubscribe = onSnapshot(chatsQuery, async (snapshot) => {
@@ -174,28 +178,52 @@ const UserList: React.FC = () => {
               const userDoc = await getDoc(doc(db, 'users', otherUserId));
               if (userDoc.exists()) {
                 const userData = userDoc.data();
+                
+                // Count unseen messages
+                const unseenQuery = query(
+                  collection(db, 'chats', docSnap.id, 'messages'),
+                  where('senderId', '!=', currentUser.uid),
+                  where('seen', '==', false)
+                );
+                const unseenSnapshot = await getDocs(unseenQuery);
+                
                 chats.push({
                   id: docSnap.id,
                   type: 'direct',
                   name: userData.name || userData.email,
                   avatar: userData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || userData.email)}&background=6366f1&color=fff`,
                   lastMessage: chatData.lastMessage || '',
+                  lastMessageSender: chatData.lastMessageSender || '',
+                  lastMessageSenderName: chatData.lastMessageSenderName || '',
                   updatedAt: chatData.updatedAt?.toDate() || new Date(),
-                  unseenCount: 0, // Will be calculated separately
-                  isOnline: userData.isOnline || false
+                  unseenCount: unseenSnapshot.size,
+                  isOnline: userData.isOnline || false,
+                  members: chatData.members,
+                  memberNames: chatData.memberNames
                 });
               }
             }
           } else if (chatData.type === 'team') {
+            // Count unseen messages for team chat
+            const unseenQuery = query(
+              collection(db, 'chats', docSnap.id, 'messages'),
+              where('senderId', '!=', currentUser.uid),
+              where('seen', '==', false)
+            );
+            const unseenSnapshot = await getDocs(unseenQuery);
+            
             chats.push({
               id: docSnap.id,
               type: 'team',
               name: chatData.teamName,
               avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatData.teamName)}&background=6366f1&color=fff`,
               lastMessage: chatData.lastMessage || '',
+              lastMessageSender: chatData.lastMessageSender || '',
+              lastMessageSenderName: chatData.lastMessageSenderName || '',
               updatedAt: chatData.updatedAt?.toDate() || new Date(),
-              unseenCount: 0, // Will be calculated separately
-              isOnline: true
+              unseenCount: unseenSnapshot.size,
+              isOnline: true,
+              members: chatData.members
             });
           }
         }
@@ -321,7 +349,9 @@ const UserList: React.FC = () => {
     const now = new Date();
     const diffInMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
     
-    if (diffInMinutes < 60) {
+    if (diffInMinutes < 1) {
+      return 'now';
+    } else if (diffInMinutes < 60) {
       return `${diffInMinutes}m ago`;
     } else if (diffInMinutes < 1440) {
       return `${Math.floor(diffInMinutes / 60)}h ago`;
@@ -330,13 +360,20 @@ const UserList: React.FC = () => {
     }
   };
 
-  const getOnlineStatus = (user: User) => {
-    if (user.isOnline) {
-      return <div className="w-3 h-3 bg-green-500 rounded-full"></div>;
-    } else if (user.lastSeen) {
-      return <div className="w-3 h-3 bg-gray-400 rounded-full"></div>;
+  const formatLastMessage = (chat: Chat) => {
+    if (!chat.lastMessage) return 'No messages yet';
+    
+    if (chat.type === 'team' && chat.lastMessageSenderName) {
+      return `${chat.lastMessageSenderName}: ${chat.lastMessage}`;
+    } else if (chat.type === 'direct') {
+      if (chat.lastMessageSender === currentUser?.uid) {
+        return `You: ${chat.lastMessage}`;
+      } else {
+        return chat.lastMessage;
+      }
     }
-    return null;
+    
+    return chat.lastMessage;
   };
 
   return (
@@ -408,7 +445,7 @@ const UserList: React.FC = () => {
                       alt={chat.name}
                       className="w-10 h-10 rounded-full object-cover"
                     />
-                    {chat.isOnline && (
+                    {chat.isOnline && chat.type === 'direct' && (
                       <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
                     )}
                     {chat.unseenCount > 0 && (
@@ -431,7 +468,7 @@ const UserList: React.FC = () => {
                     <p className={`text-xs truncate ${
                       chat.unseenCount > 0 ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-500 dark:text-gray-400'
                     }`}>
-                      {chat.lastMessage}
+                      {formatLastMessage(chat)}
                     </p>
                     {chat.type === 'team' && (
                       <div className="flex items-center space-x-1 mt-1">

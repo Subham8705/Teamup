@@ -58,7 +58,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       const applicationCount = snapshot.size;
       setNotifications(prev => ({
         ...prev,
-        teams: applicationCount + prev.teams - (prev.teams > 0 ? Math.floor(prev.teams / 2) : 0)
+        teams: applicationCount
       }));
     });
     unsubscribes.push(unsubscribeApplications);
@@ -95,51 +95,54 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     });
     unsubscribes.push(unsubscribeCollabRequests);
 
-    // Listen to unread messages
-    const chatsQuery = query(collection(db, 'chats'));
+    // Listen to unread messages in all chats
+    const chatsQuery = query(
+      collection(db, 'chats'),
+      where('members', 'array-contains', user.uid)
+    );
+    
     const unsubscribeChats = onSnapshot(chatsQuery, async (snapshot) => {
-      let unreadCount = 0;
+      let totalUnreadCount = 0;
       
       for (const chatDoc of snapshot.docs) {
-        const chatData = chatDoc.data();
-        
-        // Check if user is part of this chat
-        const isDirectChat = chatData.type === 'direct' && chatData.members?.includes(user.uid);
-        const isTeamChat = chatData.type === 'team';
-        
-        if (isDirectChat || isTeamChat) {
-          // Check for unread messages
+        try {
+          // Count unread messages in this chat
           const messagesQuery = query(
             collection(db, 'chats', chatDoc.id, 'messages'),
             where('senderId', '!=', user.uid),
+            where('seen', '==', false)
+          );
+          
+          const messagesSnapshot = await getDocs(messagesQuery);
+          totalUnreadCount += messagesSnapshot.size;
+        } catch (error) {
+          // Handle compound query limitations - fallback to simpler query
+          console.log('Using fallback query for chat notifications');
+          const messagesQuery = query(
+            collection(db, 'chats', chatDoc.id, 'messages'),
             where('seen', '==', false),
-            orderBy('senderId'),
             orderBy('timestamp', 'desc'),
             limit(50)
           );
           
           try {
             const messagesSnapshot = await getDocs(messagesQuery);
-            unreadCount += messagesSnapshot.size;
-          } catch (error) {
-            // Handle compound query limitations
-            console.log('Using alternative query for unread messages');
+            const unreadMessages = messagesSnapshot.docs.filter(doc => 
+              doc.data().senderId !== user.uid
+            );
+            totalUnreadCount += unreadMessages.length;
+          } catch (fallbackError) {
+            console.error('Error counting unread messages:', fallbackError);
           }
         }
       }
       
       setNotifications(prev => ({
         ...prev,
-        chats: unreadCount
+        chats: totalUnreadCount
       }));
     });
     unsubscribes.push(unsubscribeChats);
-
-    // Calculate total
-    setNotifications(prev => ({
-      ...prev,
-      total: prev.teams + prev.chats + prev.collaborations
-    }));
 
     return () => {
       unsubscribes.forEach(unsubscribe => unsubscribe());

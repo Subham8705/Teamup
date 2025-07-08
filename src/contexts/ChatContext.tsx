@@ -52,9 +52,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         memberEmails: [user.email, targetUser.email],
         lastMessage: '',
         lastMessageSender: '',
+        lastMessageSenderName: '',
         updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        typingUsers: []
+        createdAt: serverTimestamp()
       });
     }
     
@@ -92,9 +92,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
           members: teamData.members,
           lastMessage: '',
           lastMessageSender: '',
+          lastMessageSenderName: '',
           updatedAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          typingUsers: []
+          createdAt: serverTimestamp()
         });
       }
       
