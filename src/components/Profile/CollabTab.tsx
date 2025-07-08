@@ -591,9 +591,7 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
                     </div>
                     <div className="flex items-center text-gray-600 dark:text-gray-300">
                       <Calendar className="w-4 h-4 mr-2" />
-                      Joined {selectedProfile.createdAt?.toDate ? 
-                        new Date(selectedProfile.createdAt.toDate()).toLocaleDateString() : 
-                        'Recently'}
+                      Joined {formatJoinDate(selectedProfile.createdAt)}
                     </div>
                     <div className="flex items-center text-gray-600 dark:text-gray-300">
                       <Users className="w-4 h-4 mr-2" />
@@ -714,6 +712,31 @@ const CollabTab: React.FC<CollabTabProps> = ({ profileData, loading }) => {
       )}
     </motion.div>
   );
+
+  // Helper function to format join date
+  function formatJoinDate(createdAt: any) {
+    if (!createdAt) return 'Recently';
+    
+    let date;
+    if (createdAt.toDate) {
+      // Firestore Timestamp
+      date = createdAt.toDate();
+    } else if (createdAt instanceof Date) {
+      // JavaScript Date
+      date = createdAt;
+    } else if (typeof createdAt === 'string') {
+      // ISO string
+      date = new Date(createdAt);
+    } else {
+      return 'Recently';
+    }
+    
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
 };
 
 export default CollabTab;

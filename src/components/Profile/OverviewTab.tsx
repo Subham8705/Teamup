@@ -48,6 +48,30 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ profileData }) => {
     }
   };
 
+  const formatJoinDate = (createdAt: any) => {
+    if (!createdAt) return 'Recently';
+    
+    let date;
+    if (createdAt.toDate) {
+      // Firestore Timestamp
+      date = createdAt.toDate();
+    } else if (createdAt instanceof Date) {
+      // JavaScript Date
+      date = createdAt;
+    } else if (typeof createdAt === 'string') {
+      // ISO string
+      date = new Date(createdAt);
+    } else {
+      return 'Recently';
+    }
+    
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -79,6 +103,24 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ profileData }) => {
                 }
               </p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Join Date */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-colors duration-300">
+        <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Member Since</h3>
+        <div className="flex items-center p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+          <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mr-4">
+            <Eye className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-gray-900 dark:text-white">
+              {formatJoinDate(profileData?.createdAt)}
+            </h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Welcome to the TeamUp community!
+            </p>
           </div>
         </div>
       </div>
