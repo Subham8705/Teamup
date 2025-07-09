@@ -4,11 +4,9 @@ import {
   Trash2, 
   MoreVertical, 
   ArrowDown,
-  AlertTriangle,
-  BookOpen
+  AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import NotesPanel from './NotesPanel';
 
 interface Message {
   id: string;
@@ -24,7 +22,7 @@ interface MessageLayoutProps {
   onDeleteMessage: (messageId: string) => void;
   loading: boolean;
   chatTitle: string;
-  onClearChat: () => void;
+  onClearChat: () => Promise<void> | void;
 }
 
 const MessageLayout: React.FC<MessageLayoutProps> = ({
@@ -41,8 +39,8 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
   const [showClearModal, setShowClearModal] = useState(false);
-  const [showNotesPanel, setShowNotesPanel] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [clearingChat, setClearingChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -109,11 +107,20 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
 
   const handleClearChat = () => {
     setShowClearModal(true);
+    setShowDropdown(false);
   };
 
-  const confirmClearChat = () => {
-    onClearChat();
-    setShowClearModal(false);
+  const confirmClearChat = async () => {
+    setClearingChat(true);
+    try {
+      await onClearChat();
+      setShowClearModal(false);
+    } catch (error) {
+      console.error('Error clearing chat:', error);
+      // You might want to show an error toast here
+    } finally {
+      setClearingChat(false);
+    }
   };
 
   return (
@@ -134,15 +141,6 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
         </div>
         
         <div className="flex items-center space-x-2">
-          {/* Notes Button */}
-          <button
-            onClick={() => setShowNotesPanel(true)}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors duration-200 group"
-            title="Open Notes"
-          >
-            <BookOpen className="w-5 h-5 text-white group-hover:text-purple-200 transition-colors duration-200" />
-          </button>
-          
           {/* More Options Dropdown */}
           <div className="relative">
             <button
@@ -154,18 +152,23 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
             </button>
             
             {showDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-10">
-                <button
-                  onClick={() => {
-                    handleClearChat();
-                    setShowDropdown(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center space-x-2 transition-colors duration-200 rounded-lg"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Clear Chat</span>
-                </button>
-              </div>
+              <>
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-20">
+                  <button
+                    onClick={handleClearChat}
+                    disabled={messages.length === 0}
+                    className="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors duration-200 rounded-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Clear Chat</span>
+                  </button>
+                </div>
+                {/* Click outside to close dropdown */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowDropdown(false)}
+                />
+              </>
             )}
           </div>
         </div>
@@ -276,21 +279,6 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
         </div>
       </div>
 
-      {/* Notes Panel */}
-      <NotesPanel
-        isOpen={showNotesPanel}
-        onClose={() => setShowNotesPanel(false)}
-        chatId={chatTitle}
-      />
-
-      {/* Click outside to close dropdown */}
-      {showDropdown && (
-        <div
-          className="fixed inset-0 z-10"
-          onClick={() => setShowDropdown(false)}
-        />
-      )}
-
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4 transition-colors duration-300">
@@ -340,15 +328,20 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowClearModal(false)}
-                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                disabled={clearingChat}
+                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmClearChat}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                disabled={clearingChat}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
               >
-                Clear Chat
+                {clearingChat && (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                )}
+                <span>{clearingChat ? 'Clearing...' : 'Clear Chat'}</span>
               </button>
             </div>
           </div>
