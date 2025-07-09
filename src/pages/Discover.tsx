@@ -428,12 +428,7 @@ const Discover: React.FC = () => {
     const canMessage = await canMessageUser(targetDev);
     
     if (!canMessage) {
-      const isTeamMember = teamMembers.has(targetDev.userId);
-      if (isTeamMember) {
-        toast.error(`${targetDev.name} has a private profile. You can message them through your team chat instead.`);
-      } else {
-        toast.error(`${targetDev.name} has a private profile. Send them a collaboration request first to be able to message them.`);
-      }
+      // Error message is already handled in canMessageUser function
       return;
     }
 
