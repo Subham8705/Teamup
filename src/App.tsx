@@ -15,7 +15,7 @@ import Teams from './pages/Teams';
 import Hackathons from './pages/Hackathons';
 import Chat from './pages/Chat';
 import Profile from './pages/Profile';
-import Courses from './pages/Courses';
+// import Courses from './pages/Courses';
 import About from './pages/About';
 import Discover from './pages/Discover';
 import AuthWrapper from './components/Auth/AuthWrapper';
@@ -91,14 +91,14 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route
+                  {/* <Route
                     path="/courses"
                     element={
                       <ProtectedRoute>
                         <Courses />
                       </ProtectedRoute>
                     }
-                  />
+                  /> */}
                   <Route
                     path="/profile"
                     element={

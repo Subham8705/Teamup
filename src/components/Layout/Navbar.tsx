@@ -39,7 +39,7 @@ const Navbar: React.FC = () => {
       icon: MessageCircle, 
       notification: notifications.chats 
     },
-    { path: '/courses', label: 'Courses', icon: BookOpen },
+    // { path: '/courses', label: 'Courses', icon: BookOpen },
     { path: '/about', label: 'About', icon: Info },
   ];
 
