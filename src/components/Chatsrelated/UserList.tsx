@@ -41,6 +41,7 @@ interface Chat {
   lastMessage: string;
   updatedAt: Date;
   isOnline?: boolean;
+  unreadCount?: number;
 }
 
 const UserList: React.FC = () => {
@@ -143,10 +144,28 @@ const UserList: React.FC = () => {
         orderBy('updatedAt', 'desc'),
         limit(20)
       );
+      
       const unsubscribe = onSnapshot(chatsQuery, async (snapshot) => {
         const chats: Chat[] = [];
+        
         for (const docSnap of snapshot.docs) {
           const chatData = docSnap.data();
+          let unreadCount = 0;
+          
+          // Count unread messages
+          try {
+            const messagesQuery = query(
+              collection(db, 'chats', docSnap.id, 'messages'),
+              where('senderId', '!=', currentUser.uid),
+              where('seen', '==', false)
+            );
+            const unreadSnapshot = await getDocs(messagesQuery);
+            unreadCount = unreadSnapshot.size;
+          } catch (error) {
+            // Handle compound query limitations
+            console.log('Using alternative method for unread count');
+          }
+          
           if (chatData.type === 'direct') {
             const otherUserId = chatData.members.find((id: string) => id !== currentUser.uid);
             if (otherUserId) {
@@ -160,7 +179,8 @@ const UserList: React.FC = () => {
                   avatar: userData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name || userData.email)}&background=6366f1&color=fff`,
                   lastMessage: chatData.lastMessage || '',
                   updatedAt: chatData.updatedAt?.toDate() || new Date(),
-                  isOnline: userData.isOnline || false
+                  isOnline: userData.isOnline || false,
+                  unreadCount
                 });
               }
             }
@@ -172,13 +192,23 @@ const UserList: React.FC = () => {
               avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatData.teamName)}&background=6366f1&color=fff`,
               lastMessage: chatData.lastMessage || '',
               updatedAt: chatData.updatedAt?.toDate() || new Date(),
-              isOnline: true
+              isOnline: true,
+              unreadCount
             });
           }
         }
-        chats.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+        
+        // Sort by unread messages first, then by last activity
+        chats.sort((a, b) => {
+          if (a.unreadCount !== b.unreadCount) {
+            return (b.unreadCount || 0) - (a.unreadCount || 0);
+          }
+          return b.updatedAt.getTime() - a.updatedAt.getTime();
+        });
+        
         setRecentChats(chats);
       });
+      
       return unsubscribe;
     } catch (error) {
       console.error('Error loading recent chats:', error);
@@ -279,16 +309,16 @@ const UserList: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg overflow-hidden h-full flex flex-col">
-      <div className="p-4 border-b border-gray-200">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden h-full flex flex-col transition-colors duration-300">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400 dark:text-gray-500" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search users by username..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 bg-white text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300"
           />
         </div>
 
@@ -297,8 +327,8 @@ const UserList: React.FC = () => {
             onClick={() => setActiveTab('recent')}
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'recent'
-                ? 'bg-purple-100 text-purple-700'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
             <Clock className="w-4 h-4" />
@@ -308,8 +338,8 @@ const UserList: React.FC = () => {
             onClick={() => setActiveTab('search')}
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'search'
-                ? 'bg-purple-100 text-purple-700'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
             <Users className="w-4 h-4" />
@@ -323,9 +353,9 @@ const UserList: React.FC = () => {
           <div className="p-4 space-y-2">
             {recentChats.length === 0 ? (
               <div className="text-center py-8">
-                <MessageCircle className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-500 text-sm">No recent chats</p>
-                <p className="text-xs text-gray-400 mt-2">
+                <MessageCircle className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+                <p className="text-gray-500 dark:text-gray-400 text-sm">No recent chats</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
                   Search for users to start a conversation
                 </p>
               </div>
@@ -336,8 +366,8 @@ const UserList: React.FC = () => {
                   onClick={() => handleChatClick(chat)}
                   className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
                     selectedChat === chat.id
-                      ? 'bg-purple-100'
-                      : 'hover:bg-gray-100'
+                      ? 'bg-purple-100 dark:bg-purple-900/30'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                 >
                   <div className="relative">
@@ -347,25 +377,36 @@ const UserList: React.FC = () => {
                       className="w-10 h-10 rounded-full object-cover"
                     />
                     {chat.isOnline && (
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className={`text-sm font-medium truncate text-gray-900`}>
+                      <p className={`text-sm font-medium truncate text-gray-900 dark:text-white ${
+                        chat.unreadCount && chat.unreadCount > 0 ? 'font-bold' : ''
+                      }`}>
                         {chat.name}
                       </p>
-                      <span className="text-xs text-gray-500">
-                        {formatTimestamp(chat.updatedAt)}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatTimestamp(chat.updatedAt)}
+                        </span>
+                        {chat.unreadCount && chat.unreadCount > 0 && (
+                          <span className="bg-purple-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                            {chat.unreadCount > 9 ? '9+' : chat.unreadCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs truncate text-gray-500">
-                      {chat.lastMessage}
+                    <p className={`text-xs truncate text-gray-500 dark:text-gray-400 ${
+                      chat.unreadCount && chat.unreadCount > 0 ? 'font-medium' : ''
+                    }`}>
+                      {chat.lastMessage || 'No messages yet'}
                     </p>
                     {chat.type === 'team' && (
                       <div className="flex items-center space-x-1 mt-1">
-                        <Users className="w-3 h-3 text-purple-500" />
-                        <span className="text-xs text-purple-600">Team Chat</span>
+                        <Users className="w-3 h-3 text-purple-500 dark:text-purple-400" />
+                        <span className="text-xs text-purple-600 dark:text-purple-400">Team Chat</span>
                       </div>
                     )}
                   </div>
@@ -377,17 +418,17 @@ const UserList: React.FC = () => {
           <div className="p-4 space-y-2">
             {loading ? (
               <div className="text-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600 mb-4" />
-                <p className="text-gray-500 text-sm">Searching users...</p>
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600 dark:text-purple-400 mb-4" />
+                <p className="text-gray-500 dark:text-gray-400 text-sm">Searching users...</p>
               </div>
             ) : users.length === 0 ? (
               <div className="text-center py-8">
-                <User className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-500 text-sm">
+                <User className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
                   {search.trim() ? 'No users found' : 'Start typing to search users'}
                 </p>
                 {search.trim() && (
-                  <p className="text-xs text-gray-400 mt-2">
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
                     Try searching for someone's username or email
                   </p>
                 )}
@@ -402,7 +443,7 @@ const UserList: React.FC = () => {
                     onClick={() => handleStartChat(user)}
                     className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
                       canMessage 
-                        ? 'hover:bg-gray-100 cursor-pointer' 
+                        ? 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer' 
                         : 'opacity-60 cursor-not-allowed'
                     }`}
                   >
@@ -415,29 +456,29 @@ const UserList: React.FC = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {user.name}
                         </p>
                         {relationshipLabel && (
-                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
                             {relationshipLabel}
                           </span>
                         )}
                       </div>
                       <div className="flex items-center space-x-2">
-                        <p className="text-xs text-gray-500 truncate">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                           {user.email}
                         </p>
                         {user.isOnline ? (
-                          <span className="text-xs text-green-600">Online</span>
+                          <span className="text-xs text-green-600 dark:text-green-400">Online</span>
                         ) : user.lastSeen ? (
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-gray-400 dark:text-gray-500">
                             Last seen {formatTimestamp(user.lastSeen)}
                           </span>
                         ) : null}
                       </div>
                       {!canMessage && (
-                        <p className="text-xs text-orange-600">
+                        <p className="text-xs text-orange-600 dark:text-orange-400">
                           {teamMembers.has(user.id) 
                             ? 'Private profile - use team chat'
                             : 'Private profile - collaborate first'
