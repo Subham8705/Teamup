@@ -18,18 +18,18 @@ const About: React.FC = () => {
   const founders = [
     {
       name: 'Nikhil Pabbisetti',
-      role: 'Co-Founder & CEO',
+      role: 'Co-Founder',
       bio: 'Full-stack developer with 1+ years experience. Passionate about building platforms that connect creative minds.',
-      image: 'https://res.cloudinary.com/dfc8a9imb/image/upload/c_fill,w_600,h_600,g_auto/v1751890164/nikhil_photooo-removebg-preview_1_iefmlb.png',
+      image: 'https://res.cloudinary.com/dpa0sb1tm/image/upload/c_crop,w_300,h_150,g_auto/v1751541159/gandu_kcdzmz.jpg',
       github: 'https://github.com/Nikhil-p570',
       linkedin: 'https://www.linkedin.com/in/nikhil-pabbisetti/',
       email: 'nikhil.pabbisetti2006@gmail.com'
     },
     {
       name: 'Subham Kumar Shee',
-      role: 'Co-Founder & CTO',
+      role: 'Co-Founder',
       bio: 'AI/ML engineer and former Google software engineer. Believes in the power of collaboration to solve complex problems.',
-      image: 'https://res.cloudinary.com/dfc8a9imb/image/upload/v1751618651/subhamimg_jtwhma.jpg',
+      image: 'https://res.cloudinary.com/dpa0sb1tm/image/upload/c_crop,w_490,h_180,g_auto/v1743426464/A-20250216-WA0006_-_Subham_kumar_fhw4hr.jpg',
       github: 'https://github.com/Subham8705/Teamup',
       linkedin: 'https://www.linkedin.com/in/subham-kumar-shee-221886328/',
       email: 'subhamkumarshee@gmail.com '
@@ -249,19 +249,19 @@ const About: React.FC = () => {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="mailto:hello@teamup.com"
+              href="mailto:nikhil.pabbisetti2006@gmail.com"
               className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors flex items-center justify-center"
             >
               <Mail className="w-5 h-5 mr-2" />
-              hello@teamup.com
+              nikhil.pabbisetti2006@gmail.com
             </a>
-            <a
+            {/* <a
               href="#"
               className="border-2 border-white text-white px-6 py-3 rounded-lg font-semibold hover:bg-white hover:text-purple-600 transition-colors flex items-center justify-center"
             >
               <MessageCircle className="w-5 h-5 mr-2" />
               Join our Discord
-            </a>
+            </a> */}
           </div>
         </div>
       </section>
