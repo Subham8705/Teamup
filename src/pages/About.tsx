@@ -18,7 +18,7 @@ const About: React.FC = () => {
   const founders = [
     {
       name: 'Nikhil Pabbisetti',
-      role: 'Co-Founder',
+      role: 'Founder',
       bio: 'Full-stack developer with 1+ years experience. Passionate about building platforms that connect creative minds.',
       image: 'https://res.cloudinary.com/dfc8a9imb/image/upload/c_crop,w_490,h_180,g_auto/v1752079340/nikhil_photooo-removebg-preview_sa2jsb.png',
       github: 'https://github.com/Nikhil-p570',
