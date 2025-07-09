@@ -259,10 +259,16 @@ const UserList: React.FC = () => {
   };
 
   const canMessageUser = (user: UserType) => {
-    if (!user.profileVisibility || user.profileVisibility === 'public') return true;
+    // If user has public profile or no visibility setting (default to public), anyone can message
+    if (!user.profileVisibility || user.profileVisibility === 'public') {
+      return true;
+    }
+    
+    // If user has private profile, only collaborators and team members can message
     if (user.profileVisibility === 'private') {
       return collaborators.has(user.id) || teamMembers.has(user.id);
     }
+    
     return false;
   };
 
@@ -282,10 +288,15 @@ const UserList: React.FC = () => {
   const handleStartChat = (user: UserType) => {
     if (!canMessageUser(user)) {
       const isTeamMember = teamMembers.has(user.id);
+      const isCollaborator = collaborators.has(user.id);
+      
       if (isTeamMember) {
-        toast.error(`${user.name} has a private profile, but you can message them through your team chat.`);
+        toast.error(`${user.name} has a private profile. You can message them through your team chat instead.`);
+      } else if (isCollaborator) {
+        // This shouldn't happen as collaborators should be able to message
+        toast.error(`${user.name} has a private profile. Try refreshing the page.`);
       } else {
-        toast.error(`${user.name} has a private profile. You need to collaborate with them first to send messages.`);
+        toast.error(`${user.name} has a private profile. Send them a collaboration request first to be able to message them.`);
       }
       return;
     }
@@ -480,8 +491,8 @@ const UserList: React.FC = () => {
                       {!canMessage && (
                         <p className="text-xs text-orange-600 dark:text-orange-400">
                           {teamMembers.has(user.id) 
-                            ? 'Private profile - use team chat'
-                            : 'Private profile - collaborate first'
+                            ? 'Private profile - message via team chat'
+                            : 'Private profile - send collaboration request first'
                           }
                         </p>
                       )}

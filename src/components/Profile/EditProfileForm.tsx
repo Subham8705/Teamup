@@ -104,7 +104,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
                 Private Profile
               </label>
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                Only your collaborators can message you. Others must send collaboration requests first. More privacy and control.
+                Only your collaborators and team members can message you directly. Others must send collaboration requests first. More privacy and control.
               </p>
             </div>
           </div>
@@ -129,7 +129,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
           <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
             {profileVisibility === 'public' 
               ? 'Your profile is discoverable and anyone can message you.'
-              : 'Your profile is protected and only collaborators can message you.'
+              : 'Your profile is protected and only collaborators and team members can message you directly.'
             }
           </p>
         </div>
