@@ -1,24 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   MessageCircle, 
   ArrowLeft,
   User as UserIcon
 } from 'lucide-react';
 import {
-  collection,
-  query,
-  where,
-  addDoc,
-  getDocs,
-  onSnapshot,
-  doc,
-  updateDoc,
-  serverTimestamp,
-  orderBy,
-  setDoc,
-  getDoc,
-  deleteDoc,
-  writeBatch
+  collection,query,where,addDoc,getDocs,onSnapshot,doc,updateDoc,serverTimestamp,orderBy,setDoc,getDoc,deleteDoc,writeBatch
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import MessageLayout from '../components/Chatsrelated/MessageLayout';
@@ -33,7 +20,6 @@ interface Message {
   senderName: string;
   content: string;
   timestamp: any;
-  seen: boolean;
 }
 
 const ChatPage: React.FC = () => {
@@ -61,27 +47,17 @@ const ChatPage: React.FC = () => {
 
   const startChatWithUser = async (targetUserId: string, targetUserName: string) => {
     if (!user || !userProfile) return;
-    
     try {
       const chatId = [user.uid, targetUserId].sort().join('_');
       const chatRef = doc(db, 'chats', chatId);
-      
-      // Get target user info
-      const targetUserDoc = await getDoc(doc(db, 'users', targetUserId));
-      const targetUserData = targetUserDoc.data();
-      
       await setDoc(chatRef, {
         id: chatId,
         type: 'direct',
         members: [user.uid, targetUserId],
-        memberNames: [userProfile.name || user.email, targetUserData?.name || targetUserName],
-        memberEmails: [user.email, targetUserData?.email || ''],
+        memberNames: [userProfile.name || user.email, targetUserName],
         lastMessage: '',
-        lastMessageSender: '',
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp()
+        updatedAt: serverTimestamp()
       }, { merge: true });
-      
       setSelectedChat(chatId);
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error) {
@@ -92,20 +68,17 @@ const ChatPage: React.FC = () => {
 
   const startTeamChatFromUrl = async (teamId: string, teamName: string) => {
     if (!user) return;
-    
     try {
       const teamDoc = await getDoc(doc(db, 'teams', teamId));
       if (!teamDoc.exists()) {
         toast.error('Team not found');
         return;
       }
-      
       const teamData = teamDoc.data();
       if (!teamData.members?.includes(user.uid)) {
         toast.error('You are not a member of this team');
         return;
       }
-      
       await startTeamChat(teamId, teamName);
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error) {
@@ -117,24 +90,18 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     if (selectedChat) {
       loadChatInfo(selectedChat);
-      
       // Set up real-time listener for messages
       const messagesQuery = query(
         collection(db, 'chats', selectedChat, 'messages'),
         orderBy('timestamp', 'asc')
       );
-      
       const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
         const msgs = snapshot.docs.map(doc => ({ 
           id: doc.id, 
           ...doc.data() 
         } as Message));
         setMessages(msgs);
-        
-        // Mark messages as seen
-        markMessagesAsSeen(selectedChat, msgs);
       });
-      
       return unsubscribe;
     } else {
       setMessages([]);
@@ -153,51 +120,23 @@ const ChatPage: React.FC = () => {
     }
   };
 
-  const markMessagesAsSeen = async (chatId: string, msgs: Message[]) => {
-    if (!user) return;
-    
-    const unseenMessages = msgs.filter(m => !m.seen && m.senderId !== user.uid);
-    if (unseenMessages.length === 0) return;
-    
-    try {
-      const batch = writeBatch(db);
-      
-      unseenMessages.forEach(message => {
-        const messageRef = doc(db, 'chats', chatId, 'messages', message.id);
-        batch.update(messageRef, { seen: true });
-      });
-      
-      await batch.commit();
-    } catch (error) {
-      console.error('Error marking messages as seen:', error);
-    }
-  };
-
   const sendMessage = async (messageContent: string) => {
     if (!messageContent.trim() || !selectedChat || !user || !userProfile) {
       return;
     }
-    
     setLoading(true);
-    
     try {
-      // Add message to Firestore
       await addDoc(collection(db, 'chats', selectedChat, 'messages'), {
         senderId: user.uid,
         senderName: userProfile.name || user.email,
         content: messageContent.trim(),
-        timestamp: serverTimestamp(),
-        seen: false
+        timestamp: serverTimestamp()
       });
-      
-      // Update chat's last message and bring it to top
       await updateDoc(doc(db, 'chats', selectedChat), {
         lastMessage: messageContent.trim(),
-        lastMessageSender: user.uid,
-        lastMessageSenderName: userProfile.name || user.email,
         updatedAt: serverTimestamp()
       });
-      
+      toast.success('Message sent');
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
@@ -208,7 +147,6 @@ const ChatPage: React.FC = () => {
 
   const handleDeleteMessage = async (msgId: string) => {
     if (!selectedChat || !user) return;
-    
     try {
       await deleteDoc(doc(db, 'chats', selectedChat, 'messages', msgId));
       toast.success('Message deleted');
@@ -220,26 +158,17 @@ const ChatPage: React.FC = () => {
 
   const handleClearChat = async () => {
     if (!selectedChat || !user) return;
-    
     try {
-      // Get all messages in the chat
       const messagesQuery = query(collection(db, 'chats', selectedChat, 'messages'));
       const messagesSnapshot = await getDocs(messagesQuery);
-      
-      // Delete all messages
       const batch = writeBatch(db);
       messagesSnapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
       });
-      
-      // Update chat's last message
       batch.update(doc(db, 'chats', selectedChat), {
         lastMessage: '',
-        lastMessageSender: '',
-        lastMessageSenderName: '',
         updatedAt: serverTimestamp()
       });
-      
       await batch.commit();
       toast.success('Chat cleared');
     } catch (error) {
@@ -250,12 +179,9 @@ const ChatPage: React.FC = () => {
 
   const getChatTitle = () => {
     if (!currentChatInfo) return 'Chat';
-    
     if (currentChatInfo.type === 'team') {
       return `${currentChatInfo.teamName} (Team Chat)`;
     }
-    
-    // For direct chats, find the other user's name
     const otherName = currentChatInfo.memberNames?.find(
       (name: string) => name !== userProfile?.name && name !== user?.email
     );
@@ -264,10 +190,10 @@ const ChatPage: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
@@ -275,13 +201,13 @@ const ChatPage: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <MessageCircle className="w-16 h-16 mx-auto text-purple-600 mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
             Please Sign In
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600">
             You need to be signed in to access the chat
           </p>
         </div>
@@ -290,8 +216,7 @@ const ChatPage: React.FC = () => {
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-purple-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex flex-col overflow-hidden">
-      {/* Fixed Header */}
+    <div className="h-screen flex flex-col">
       <div className="flex-shrink-0 p-6 pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -299,46 +224,37 @@ const ChatPage: React.FC = () => {
               <MessageCircle className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-3xl font-bold text-gray-900">
                 TeamUp Chat
               </h1>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-gray-600">
                 Connect with your collaborators and team members
               </p>
             </div>
           </div>
-          
           <div className="flex items-center space-x-3">
-            {/* User Profile */}
-            <div className="flex items-center space-x-2 bg-white dark:bg-gray-800 rounded-full px-4 py-2 shadow-lg">
-              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
-                <UserIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <div className="flex items-center space-x-2 bg-white rounded-full px-4 py-2 shadow-lg">
+              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                <UserIcon className="w-4 h-4 text-purple-600" />
               </div>
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
+              <span className="text-sm font-medium text-gray-900">
                 {userProfile?.name || user.email}
               </span>
             </div>
-            
-            {/* Mobile back button */}
             <button
               onClick={() => setShowMobileUserList(!showMobileUserList)}
-              className="lg:hidden bg-white dark:bg-gray-800 p-3 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+              className="lg:hidden bg-white p-3 rounded-full shadow-lg hover:shadow-xl transition-shadow"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
           </div>
         </div>
       </div>
-
-      {/* Chat Container */}
-      <div className="flex-1 px-6 pb-6 min-h-0">
+      <div className="flex-1 px-6 pb-6 overflow-hidden">
         <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* User List - Hidden on mobile when chat is selected */}
           <div className={`lg:col-span-1 ${selectedChat && !showMobileUserList ? 'hidden lg:block' : ''}`}>
             <UserList />
           </div>
-
-          {/* Chat Interface */}
           <div className={`lg:col-span-2 ${!selectedChat && !showMobileUserList ? 'hidden lg:block' : ''}`}>
             {selectedChat ? (
               <MessageLayout
@@ -350,18 +266,18 @@ const ChatPage: React.FC = () => {
                 chatTitle={getChatTitle()}
               />
             ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg h-full flex items-center justify-center">
+              <div className="bg-white rounded-2xl shadow-lg h-full flex items-center justify-center">
                 <div className="text-center">
-                  <div className="w-20 h-20 bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <MessageCircle className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+                  <div className="w-20 h-20 bg-gradient-to-r from-purple-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <MessageCircle className="w-10 h-10 text-purple-600" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
                     Welcome to TeamUp Chat
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md">
+                  <p className="text-gray-600 mb-6 max-w-md">
                     Select a conversation from the sidebar or search for users to start chatting
                   </p>
-                  <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="space-y-2 text-sm text-gray-500">
                     <p>✨ Real-time messaging</p>
                     <p>🔒 Private and secure</p>
                     <p>👥 Team collaboration</p>

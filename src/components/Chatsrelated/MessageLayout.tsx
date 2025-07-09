@@ -14,7 +14,6 @@ interface Message {
   senderName: string;
   content: string;
   timestamp: any;
-  seen: boolean;
 }
 
 interface MessageLayoutProps {
@@ -114,9 +113,8 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
-      {/* 🟦 Fixed Top Bar (Profile/Title) */}
-      <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-t-2xl">
+    <div className="h-full flex flex-col bg-white rounded-2xl shadow-lg">
+      <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-t-2xl">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
             <span className="text-white font-medium">
@@ -145,8 +143,7 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
         </div>
       </div>
 
-      {/* 📱 Inner Scrollable Message Area */}
-      <div className="flex-1 relative bg-gray-50 dark:bg-gray-900">
+      <div className="flex-1 relative bg-gray-50">
         <div 
           ref={messagesContainerRef}
           className="absolute inset-0 overflow-y-auto p-4 space-y-4"
@@ -155,11 +152,11 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Send className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Send className="w-8 h-8 text-purple-600" />
                 </div>
-                <p className="text-gray-500 dark:text-gray-400">No messages yet</p>
-                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                <p className="text-gray-500">No messages yet</p>
+                <p className="text-sm text-gray-400 mt-1">
                   Send a message to start the conversation
                 </p>
               </div>
@@ -175,7 +172,7 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
                     className={`max-w-[70%] relative group ${
                       message.senderId === user?.uid
                         ? 'bg-purple-600 text-white'
-                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700'
+                        : 'bg-white text-gray-900 border border-gray-200'
                     } rounded-2xl px-4 py-3 shadow-sm`}
                   >
                     {message.senderId !== user?.uid && (
@@ -188,22 +185,11 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
                       <span className="text-xs opacity-70">
                         {formatTimestamp(message.timestamp)}
                       </span>
-                      {message.senderId === user?.uid && (
-                        <div className="flex items-center space-x-1">
-                          <span className="text-xs opacity-70">
-                            {message.seen ? 'Seen' : 'Sent'}
-                          </span>
-                          <div className={`w-2 h-2 rounded-full ${
-                            message.seen ? 'bg-green-400' : 'bg-gray-400'
-                          }`} />
-                        </div>
-                      )}
                     </div>
-                    
                     {message.senderId === user?.uid && (
                       <button
                         onClick={() => handleDeleteClick(message.id)}
-                        className="absolute -left-10 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full"
+                        className="absolute -left-10 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded-full"
                         title="Delete message"
                       >
                         <Trash2 className="w-4 h-4 text-red-600" />
@@ -216,8 +202,6 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
             </>
           )}
         </div>
-
-        {/* Scroll to bottom button */}
         {showScrollDown && (
           <button
             onClick={scrollToBottom}
@@ -228,8 +212,7 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
         )}
       </div>
 
-      {/* ⌨️ Fixed Typing Box */}
-      <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-2xl">
+      <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white rounded-b-2xl">
         <div className="flex items-end space-x-3">
           <div className="flex-1 relative">
             <textarea
@@ -237,7 +220,7 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
               onChange={(e) => setMessageText(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type your message..."
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none min-h-[44px] max-h-32 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+              className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none min-h-[44px] max-h-32 bg-gray-50 text-gray-900 placeholder-gray-500"
               rows={1}
               style={{ 
                 height: 'auto',
@@ -257,7 +240,7 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
             className={`p-3 rounded-full transition-all duration-200 ${
               messageText.trim() && !loading
                 ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
-                : 'bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
           >
             <Send className="w-5 h-5" />
@@ -265,25 +248,24 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
         </div>
       </div>
 
-      {/* Delete Message Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-red-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-semibold text-gray-900">
                 Delete Message
               </h3>
             </div>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
+            <p className="text-gray-600 mb-6">
               Are you sure you want to delete this message? This action cannot be undone.
             </p>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -298,25 +280,24 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
         </div>
       )}
 
-      {/* Clear Chat Modal */}
       {showClearModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
                 <AlertTriangle className="w-5 h-5 text-red-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-semibold text-gray-900">
                 Clear Chat
               </h3>
             </div>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
+            <p className="text-gray-600 mb-6">
               Are you sure you want to clear all messages in this chat? This action cannot be undone.
             </p>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowClearModal(false)}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 Cancel
               </button>
