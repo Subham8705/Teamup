@@ -6,7 +6,9 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  sendEmailVerification,
+  reload
 } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
 import { doc, setDoc, getDoc, updateDoc, query, collection, where, getDocs } from 'firebase/firestore';
@@ -17,8 +19,11 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   register: (email: string, password: string, userData: any) => Promise<void>;
+  resendVerification: () => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
+  emailVerificationSent: boolean;
+  setEmailVerificationSent: (sent: boolean) => void;
   updateProfileData: (updates: any) => Promise<void>;
 }
 
@@ -36,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [emailVerificationSent, setEmailVerificationSent] = useState(false);
 
   const googleProvider = new GoogleAuthProvider();
   googleProvider.setCustomParameters({
@@ -45,8 +51,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        setUserProfile(userDoc.data());
+        // Only load profile if email is verified or user signed in with Google
+        if (user.emailVerified || user.providerData.some(provider => provider.providerId === 'google.com')) {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          setUserProfile(userDoc.data());
+        } else {
+          setUserProfile(null);
+        }
       } else {
         setUserProfile(null);
       }
@@ -57,16 +68,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const register = async (email: string, password: string, userData: any) => {
-    const { user } = await createUserWithEmailAndPassword(auth, email, password);
-    await setDoc(doc(db, 'users', user.uid), {
-      ...userData,
-      email,
-      createdAt: new Date().toISOString(),
-    });
+    try {
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Send email verification
+      await sendEmailVerification(user);
+      setEmailVerificationSent(true);
+      
+      // Create user profile (but they won't be able to access it until verified)
+      await setDoc(doc(db, 'users', user.uid), {
+        ...userData,
+        email,
+        emailVerified: false,
+        createdAt: new Date().toISOString(),
+      });
+      
+      throw new Error('VERIFICATION_SENT'); // Special error to handle in UI
+    } catch (error: any) {
+      if (error.message === 'VERIFICATION_SENT') {
+        throw error; // Re-throw our custom error
+      }
+      throw error; // Re-throw Firebase errors
+    }
   };
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const { user } = await signInWithEmailAndPassword(auth, email, password);
+    
+    // Check if email is verified
+    if (!user.emailVerified) {
+      await signOut(auth); // Sign out unverified user
+      throw new Error('Please verify your email before signing in. Check your inbox for the verification link.');
+    }
+    
+    // Update email verification status in database
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, {
+      emailVerified: true,
+      lastLoginAt: new Date().toISOString()
+    });
   };
 
   const loginWithGoogle = async () => {
@@ -112,6 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           profileImage: user.photoURL || '',
           projects: [],
           profileVisibility: 'public',
+          emailVerified: true, // Google users are automatically verified
           createdAt: new Date().toISOString(),
           authProvider: 'google'
         });
@@ -129,7 +170,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
   };
+
+  const resendVerification = async () => {
+    if (!user) {
+      throw new Error('No user logged in');
+    }
+    
+    // Reload user to get latest verification status
+    await reload(user);
+    
+    if (user.emailVerified) {
+      throw new Error('Email is already verified');
+    }
+    
+    await sendEmailVerification(user);
+    setEmailVerificationSent(true);
+  };
+
   const logout = async () => {
+    setEmailVerificationSent(false);
     await signOut(auth);
   };
 
@@ -146,8 +205,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     loginWithGoogle,
     register,
+    resendVerification,
     logout,
     loading,
+    emailVerificationSent,
+    setEmailVerificationSent,
     updateProfileData,
   };
 
