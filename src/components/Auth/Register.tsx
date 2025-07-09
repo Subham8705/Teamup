@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
-import { UserPlus, Mail, Lock, User, Eye, EyeOff, Chrome } from 'lucide-react';
+import { UserPlus, Mail, Lock, User, Eye, EyeOff, Chrome, CheckCircle, RefreshCw } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
@@ -20,7 +20,14 @@ interface RegisterForm {
 const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const { register: registerUser, loginWithGoogle } = useAuth();
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
+  const { 
+    register: registerUser, 
+    loginWithGoogle, 
+    emailVerificationSent, 
+    setEmailVerificationSent,
+    resendVerification 
+  } = useAuth();
   const navigate = useNavigate();
   const {
     register,
@@ -70,9 +77,11 @@ const Register: React.FC = () => {
         profileImage: '',    // if you add one in future
         profileVisibility: 'public', // Default to public profile
       });
-      toast.success('Account created successfully!');
-      navigate('/');
     } catch (error: any) {
+      if (error.message === 'VERIFICATION_SENT') {
+        // Don't show error toast for verification sent
+        return;
+      }
       toast.error(error.message || 'Registration failed');
     }
   };
@@ -89,6 +98,95 @@ const Register: React.FC = () => {
       setIsGoogleLoading(false);
     }
   };
+
+  const handleResendVerification = async () => {
+    setIsResendingVerification(true);
+    try {
+      await resendVerification();
+      toast.success('Verification email sent! Check your inbox.');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to resend verification email');
+    } finally {
+      setIsResendingVerification(false);
+    }
+  };
+
+  // Show verification message if email verification was sent
+  if (emailVerificationSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-purple-900/20 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-green-600 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Check Your Email</h2>
+            <p className="mt-2 text-gray-600 dark:text-gray-300">
+              We've sent a verification link to your email address
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+            <div className="text-center space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  <strong>Next steps:</strong>
+                </p>
+                <ol className="text-sm text-blue-700 dark:text-blue-300 mt-2 space-y-1 text-left">
+                  <li>1. Check your email inbox</li>
+                  <li>2. Click the verification link</li>
+                  <li>3. Return here to sign in</li>
+                </ol>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleResendVerification}
+                  disabled={isResendingVerification}
+                  className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                >
+                  {isResendingVerification ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700 dark:border-gray-300 mr-2"></div>
+                      Resending...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Resend Verification Email
+                    </>
+                  )}
+                </button>
+
+                <Link
+                  to="/login"
+                  className="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-300"
+                >
+                  Go to Sign In
+                </Link>
+              </div>
+
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                <p>Didn't receive the email? Check your spam folder or try resending.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <button
+              onClick={() => {
+                setEmailVerificationSent(false);
+                window.location.reload();
+              }}
+              className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 font-medium"
+            >
+              ← Back to Registration
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-purple-900/20 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
-import { Mail, Lock, Eye, EyeOff, Chrome } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Chrome, AlertCircle } from 'lucide-react';
 
 interface LoginForm {
   email: string;
@@ -23,7 +23,15 @@ const Login: React.FC = () => {
       toast.success('Welcome back!');
       navigate('/');
     } catch (error: any) {
-      toast.error(error.message || 'Login failed');
+      if (error.message.includes('verify your email')) {
+        // Show a more detailed error for unverified emails
+        toast.error(error.message, {
+          duration: 6000,
+          icon: '📧',
+        });
+      } else {
+        toast.error(error.message || 'Login failed');
+      }
     }
   };
 
@@ -127,6 +135,16 @@ const Login: React.FC = () => {
                 <span className="px-2 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-purple-900/20 text-gray-500 dark:text-gray-400">
                   Or continue with
                 </span>
+              </div>
+            </div>
+            {/* Email Verification Notice */}
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-start">
+                <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
+                <div className="text-xs text-blue-800 dark:text-blue-200">
+                  <p className="font-medium mb-1">New to TeamUp?</p>
+                  <p>After registering with email, you'll need to verify your email address before you can sign in.</p>
+                </div>
               </div>
             </div>
 

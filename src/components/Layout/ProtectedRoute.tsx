@@ -21,13 +21,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, inverse = fal
     );
   }
 
+  // Check if user exists and email is verified (or signed in with Google)
+  const isAuthenticated = user && (
+    user.emailVerified || 
+    user.providerData.some(provider => provider.providerId === 'google.com')
+  );
   // For inverse routes (login/register pages)
   if (inverse) {
-    return user ? <Navigate to="/" /> : <>{children}</>;
+    return isAuthenticated ? <Navigate to="/" /> : <>{children}</>;
   }
 
   // For protected routes
-  return user ? <>{children}</> : <Navigate to="/login" />;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
 };
 
 export default ProtectedRoute;

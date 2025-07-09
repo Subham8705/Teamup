@@ -9,7 +9,7 @@ import Register from './Register';
 const AuthWrapper: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, emailVerificationSent } = useAuth();
   const navigate = useNavigate();
 
   const handleGoogleSignIn = async () => {
@@ -25,6 +25,10 @@ const AuthWrapper: React.FC = () => {
     }
   };
 
+  // If email verification was sent, don't show the auth wrapper
+  if (emailVerificationSent) {
+    return null; // Let the Register component handle the verification UI
+  }
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-purple-900/20 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
       <div className="max-w-md w-full space-y-8">
