@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  MessageCircle, 
+import {
+  MessageCircle,
   ArrowLeft,
-  User as UserIcon
+  User as UserIcon,
+  BookOpen
 } from 'lucide-react';
 import {
   collection,
@@ -23,6 +24,7 @@ import {
 import { db } from '../config/firebase';
 import MessageLayout from '../components/Chatsrelated/MessageLayout';
 import UserList from '../components/Chatsrelated/UserList';
+import NotesPanel from '../components/Chatsrelated/NotesPanel';
 import { useAuth } from '../contexts/AuthContext';
 import { useChatContext } from '../contexts/ChatContext';
 import { toast } from 'react-hot-toast';
@@ -43,6 +45,7 @@ const ChatPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showMobileUserList, setShowMobileUserList] = useState(false);
   const [currentChatInfo, setCurrentChatInfo] = useState<any>(null);
+  const [showNotesPanel, setShowNotesPanel] = useState(false);
 
   // Handle URL parameters for direct chat or team chat
   useEffect(() => {
@@ -64,7 +67,7 @@ const ChatPage: React.FC = () => {
     try {
       const chatId = [user.uid, targetUserId].sort().join('_');
       const chatRef = doc(db, 'chats', chatId);
-      
+
       // Create or update chat document
       await setDoc(chatRef, {
         id: chatId,
@@ -116,7 +119,7 @@ const ChatPage: React.FC = () => {
         collection(db, 'chats', selectedChat, 'messages'),
         orderBy('timestamp', 'asc')
       );
-      
+
       const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
         const msgs = snapshot.docs.map(doc => ({ 
           id: doc.id, 
@@ -137,11 +140,11 @@ const ChatPage: React.FC = () => {
 
   const markMessagesAsSeen = async (msgs: Message[]) => {
     if (!user || !selectedChat) return;
-    
+
     const unseenMessages = msgs.filter(msg => 
       msg.senderId !== user.uid && !msg.seen
     );
-    
+
     if (unseenMessages.length > 0) {
       const batch = writeBatch(db);
       unseenMessages.forEach(msg => {
@@ -182,7 +185,7 @@ const ChatPage: React.FC = () => {
         timestamp: serverTimestamp(),
         seen: false
       });
-      
+
       // Update chat's last message
       await updateDoc(doc(db, 'chats', selectedChat), {
         lastMessage: messageContent.trim(),
@@ -215,7 +218,7 @@ const ChatPage: React.FC = () => {
       const messagesQuery = query(collection(db, 'chats', selectedChat, 'messages'));
       const messagesSnapshot = await getDocs(messagesQuery);
       const batch = writeBatch(db);
-      
+
       messagesSnapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
       });
@@ -290,6 +293,15 @@ const ChatPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center space-x-3">
+            {/* Notes Button */}
+            <button
+              onClick={() => setShowNotesPanel(true)}
+              className="bg-white dark:bg-gray-700 p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group"
+              title="Open Notes"
+            >
+              <BookOpen className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition-colors duration-200" />
+            </button>
+            
             <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 rounded-full px-4 py-2 shadow-lg transition-colors duration-300">
               <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
                 <UserIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -307,7 +319,7 @@ const ChatPage: React.FC = () => {
           </div>
         </div>
       </div>
-      
+
       <div className="flex-1 px-6 pb-6 overflow-hidden">
         <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className={`lg:col-span-1 ${selectedChat && !showMobileUserList ? 'hidden lg:block' : ''}`}>
@@ -335,18 +347,20 @@ const ChatPage: React.FC = () => {
                   <p className="text-gray-600 dark:text-gray-300 mb-6 max-w-md">
                     Select a conversation from the sidebar or search for users to start chatting
                   </p>
-                  <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
-                    <p>✨ Real-time messaging</p>
-                    <p>🔒 Private and secure</p>
-                    <p>👥 Team collaboration</p>
-                    <p>📱 Mobile responsive</p>
-                  </div>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Notes Panel */}
+      <NotesPanel
+        isOpen={showNotesPanel}
+        onClose={() => setShowNotesPanel(false)}
+        chatId={selectedChat || 'general'}
+        userId={user.uid}
+      />
     </div>
   );
 };

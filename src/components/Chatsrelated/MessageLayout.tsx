@@ -4,9 +4,11 @@ import {
   Trash2, 
   MoreVertical, 
   ArrowDown,
-  AlertTriangle
+  AlertTriangle,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import NotesPanel from './NotesPanel';
 
 interface Message {
   id: string;
@@ -39,6 +41,8 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [showNotesPanel, setShowNotesPanel] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -113,7 +117,7 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
   };
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-lg transition-colors duration-300">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-lg transition-colors duration-300 relative">
       <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-t-2xl">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -130,16 +134,40 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
         </div>
         
         <div className="flex items-center space-x-2">
+          {/* Notes Button */}
           <button
-            onClick={handleClearChat}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-            title="Clear chat"
+            onClick={() => setShowNotesPanel(true)}
+            className="p-2 hover:bg-white/20 rounded-lg transition-colors duration-200 group"
+            title="Open Notes"
           >
-            <Trash2 className="w-5 h-5 text-white" />
+            <BookOpen className="w-5 h-5 text-white group-hover:text-purple-200 transition-colors duration-200" />
           </button>
-          <button className="p-2 hover:bg-white/20 rounded-lg transition-colors">
-            <MoreVertical className="w-5 h-5 text-white" />
-          </button>
+          
+          {/* More Options Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              title="More options"
+            >
+              <MoreVertical className="w-5 h-5 text-white" />
+            </button>
+            
+            {showDropdown && (
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 z-10">
+                <button
+                  onClick={() => {
+                    handleClearChat();
+                    setShowDropdown(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center space-x-2 transition-colors duration-200 rounded-lg"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Clear Chat</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -247,6 +275,21 @@ const MessageLayout: React.FC<MessageLayoutProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Notes Panel */}
+      <NotesPanel
+        isOpen={showNotesPanel}
+        onClose={() => setShowNotesPanel(false)}
+        chatId={chatTitle}
+      />
+
+      {/* Click outside to close dropdown */}
+      {showDropdown && (
+        <div
+          className="fixed inset-0 z-10"
+          onClick={() => setShowDropdown(false)}
+        />
+      )}
 
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

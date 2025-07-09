@@ -307,17 +307,19 @@ const UserList: React.FC = () => {
     setSelectedChat(chat.id);
   };
 
-  const formatTimestamp = (timestamp: Date) => {
-    const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
-    if (diffInMinutes < 60) {
-      return `${diffInMinutes}m ago`;
-    } else if (diffInMinutes < 1440) {
-      return `${Math.floor(diffInMinutes / 60)}h ago`;
-    } else {
-      return timestamp.toLocaleDateString();
-    }
-  };
+ const formatTimestamp = (timestamp: any) => {
+  const date = timestamp?.toDate?.() || new Date(timestamp); // handle both Timestamp and Date
+  const now = new Date();
+  const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes}m ago`;
+  } else if (diffInMinutes < 1440) {
+    return `${Math.floor(diffInMinutes / 60)}h ago`;
+  } else {
+    return date.toLocaleDateString();
+  }
+};
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden h-full flex flex-col transition-colors duration-300">
@@ -402,7 +404,7 @@ const UserList: React.FC = () => {
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {formatTimestamp(chat.updatedAt)}
                         </span>
-                        {chat.unreadCount && chat.unreadCount > 0 && (
+                        {Number(chat.unreadCount) > 0 && (
                           <span className="bg-purple-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
                             {chat.unreadCount > 9 ? '9+' : chat.unreadCount}
                           </span>
