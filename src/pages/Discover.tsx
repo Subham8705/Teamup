@@ -539,9 +539,7 @@ const Discover: React.FC = () => {
     }
   };
 
-  const getMessageButton = (targetDev: Developer) => {
-    const isCollaborator = collaborators.has(targetDev.userId);
-    const isTeamMember = teamMembers.has(targetDev.userId);
+  const getMessageButton = (targetDev: Developer, isCollaborator: boolean, isTeamMember: boolean) => {
     const canDirectMessage = !targetDev.profileVisibility || 
                             targetDev.profileVisibility === 'public' || 
                             isCollaborator;
@@ -842,7 +840,7 @@ const Discover: React.FC = () => {
                   )}
                   {user && user.uid !== dev.userId && (
                     <div className="flex space-x-2">
-                      {getMessageButton(dev)}
+                      {getMessageButton(dev, collaborators.has(dev.userId), teamMembers.has(dev.userId))}
                       {getCollaborationButton(dev)}
                     </div>
                   )}
