@@ -397,8 +397,8 @@ const Discover: React.FC = () => {
   };
 
   const canMessageUser = async (targetDev: Developer) => {
+    // Get the user's profile to check visibility settings
     try {
-      // Get the user's profile to check visibility settings
       const userDoc = await getDoc(doc(db, 'users', targetDev.userId));
       const userData = userDoc.data();
       
@@ -408,7 +408,7 @@ const Discover: React.FC = () => {
       }
       
       // If user has private profile, only collaborators can message
-      if (userData?.profileVisibility === 'private') {
+      if (userData.profileVisibility === 'private') {
         return collaborators.has(targetDev.userId);
       }
       
@@ -428,7 +428,7 @@ const Discover: React.FC = () => {
     const canMessage = await canMessageUser(targetDev);
     
     if (!canMessage) {
-      // Error message is already handled in canMessageUser function
+      toast.error(`${targetDev.name} has a private profile. You need to collaborate with them first to send messages.`);
       return;
     }
 
@@ -534,27 +534,18 @@ const Discover: React.FC = () => {
     }
   };
 
-  const getMessageButton = (targetDev: Developer, isCollaborator: boolean, isTeamMember: boolean) => {
-    const canDirectMessage = !targetDev.profileVisibility || 
-                            targetDev.profileVisibility === 'public' || 
-                            isCollaborator;
+  const getMessageButton = (targetDev: Developer) => {
+    const isCollaborator = collaborators.has(targetDev.userId);
     
     return (
       <button 
         onClick={() => handleMessageCollaborator(targetDev)}
         className={`px-3 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium ${
-          canDirectMessage
+          isCollaborator || !targetDev.profileVisibility || targetDev.profileVisibility === 'public'
             ? 'bg-blue-600 hover:bg-blue-700 text-white'
             : 'bg-gray-400 text-gray-200 cursor-not-allowed'
         }`}
         disabled={targetDev.profileVisibility === 'private' && !isCollaborator}
-        title={
-          !canDirectMessage 
-            ? isTeamMember 
-              ? 'Private profile - use team chat instead'
-              : 'Private profile - send collaboration request first'
-            : 'Send direct message'
-        }
       >
         {targetDev.profileVisibility === 'private' && !isCollaborator ? (
           <Lock className="w-4 h-4 mr-1" />
@@ -835,7 +826,7 @@ const Discover: React.FC = () => {
                   )}
                   {user && user.uid !== dev.userId && (
                     <div className="flex space-x-2">
-                      {getMessageButton(dev, collaborators.has(dev.userId), teamMembers.has(dev.userId))}
+                      {getMessageButton(dev)}
                       {getCollaborationButton(dev)}
                     </div>
                   )}
