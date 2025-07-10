@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, UserPlus, UserMinus, Crown, Search, Loader2, MessageCircle, Users } from 'lucide-react';
+import { X, UserPlus, UserMinus, Crown, Search, Loader2, MessageCircle, Users, Eye, EyeOff } from 'lucide-react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
@@ -58,6 +58,7 @@ const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
   const [userSuggestions, setUserSuggestions] = useState<UserSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [showAllMembers, setShowAllMembers] = useState(false);
 
   useEffect(() => {
     if (team && isOpen) {
@@ -144,15 +145,15 @@ const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
     window.location.href = `/chat?user=${memberId}&name=${encodeURIComponent(memberName)}`;
   };
 
-  const handleViewAllMembers = () => {
-    // You can implement a detailed members view here
-    console.log('View all members:', teamMembers);
+  const toggleMembersView = () => {
+    setShowAllMembers(!showAllMembers);
   };
 
   if (!isOpen || !team) return null;
 
   const owner = teamMembers.find(member => member.id === team.ownerId);
   const otherMembers = teamMembers.filter(member => member.id !== team.ownerId);
+  const displayedMembers = showAllMembers ? otherMembers : otherMembers.slice(0, 3);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -268,13 +269,32 @@ const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Team Members ({team.currentMembers})
               </h3>
-              <button
-                onClick={handleViewAllMembers}
-                className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center"
-              >
-                <Users className="w-4 h-4 mr-1" />
-                View All
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={toggleMembersView}
+                  className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center"
+                  title={showAllMembers ? "Show less members" : "Show all members"}
+                >
+                  {showAllMembers ? (
+                    <>
+                      <EyeOff className="w-4 h-4 mr-1" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4 mr-1" />
+                      View All
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowAllMembers(false)}
+                  className={`text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 ${!showAllMembers ? 'hidden' : ''}`}
+                  title="Close full view"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {loadingMembers ? (
@@ -303,7 +323,7 @@ const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                 )}
 
                 {/* Other Members */}
-                {otherMembers.map((member) => (
+                {displayedMembers.map((member) => (
                   <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="flex items-center flex-1">
                       <div className="flex-1">
@@ -336,6 +356,12 @@ const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                     </div>
                   </div>
                 ))}
+
+                {!showAllMembers && otherMembers.length > 3 && (
+                  <div className="text-center py-2 text-gray-500 dark:text-gray-400">
+                    + {otherMembers.length - 3} more members
+                  </div>
+                )}
 
                 {team.currentMembers === 1 && (
                   <div className="text-center py-4 text-gray-500 dark:text-gray-400">

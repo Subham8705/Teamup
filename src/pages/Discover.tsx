@@ -482,7 +482,7 @@ const Discover: React.FC = () => {
       return (
         <button 
           disabled
-          className="bg-gray-400 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center text-sm font-medium cursor-not-allowed"
+          className="bg-gray-400 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center text-sm font-medium cursor-not-allowed flex-1"
         >
           <Loader2 className="w-4 h-4 mr-1 animate-spin" />
           Loading...
@@ -495,7 +495,7 @@ const Discover: React.FC = () => {
         return (
           <button 
             onClick={() => handleUncollaborate(targetDev)}
-            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
+            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium flex-1"
           >
             <UserCheck className="w-4 h-4 mr-1" />
             Request Sent
@@ -505,7 +505,7 @@ const Discover: React.FC = () => {
         return (
           <button 
             disabled
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center text-sm font-medium cursor-not-allowed"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center text-sm font-medium cursor-not-allowed flex-1"
           >
             <UserCheck className="w-4 h-4 mr-1" />
             Pending Response
@@ -515,7 +515,7 @@ const Discover: React.FC = () => {
         return (
           <button 
             onClick={() => handleUncollaborate(targetDev)}
-            className="bg-green-600 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
+            className="bg-green-600 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium flex-1"
           >
             <UserCheck className="w-4 h-4 mr-1" />
             Collaborating
@@ -525,7 +525,7 @@ const Discover: React.FC = () => {
         return (
           <button 
             onClick={() => handleCollaborate(targetDev)}
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium flex-1"
           >
             <UserPlus className="w-4 h-4 mr-1" />
             Collaborate
@@ -540,7 +540,7 @@ const Discover: React.FC = () => {
     return (
       <button 
         onClick={() => handleMessageCollaborator(targetDev)}
-        className={`px-3 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium ${
+        className={`px-4 py-2 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-md flex items-center text-sm font-medium flex-1 ${
           isCollaborator || !targetDev.profileVisibility || targetDev.profileVisibility === 'public'
             ? 'bg-blue-600 hover:bg-blue-700 text-white'
             : 'bg-gray-400 text-gray-200 cursor-not-allowed'
@@ -787,7 +787,7 @@ const Discover: React.FC = () => {
               className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
             >
               <div className="flex justify-between items-start mb-4">
-                <div>
+                <div className="flex-1">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">{dev.name}</h2>
                   <p className="text-sm text-purple-600 dark:text-purple-400 font-medium">{dev.role}</p>
                   {dev.profileVisibility === 'private' && (
@@ -797,40 +797,32 @@ const Discover: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <div className="flex space-x-2">
-                  {user?.uid === dev.userId && (
-                    <button 
-                      onClick={() => {
-                        setFormData({
-                          id: dev.id,
-                          name: dev.name,
-                          role: dev.role,
-                          location: dev.location,
-                          skills: dev.skills.join(', '),
-                          projects: dev.projects.join(', '),
-                          github: dev.github || '',
-                          linkedin: dev.linkedin || '',
-                          portfolio: dev.portfolio || ''
-                        });
-                        setShowForm(true);
-                        window.scrollTo({
-                          top: 0,
-                          behavior: 'smooth' // Optional: adds smooth scrolling animation
-                        });
-                      }}
-                      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      aria-label="Edit profile"
-                    >
-                      <Pencil className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400" />
-                    </button>
-                  )}
-                  {user && user.uid !== dev.userId && (
-                    <div className="flex space-x-2">
-                      {getMessageButton(dev)}
-                      {getCollaborationButton(dev)}
-                    </div>
-                  )}
-                </div>
+                {user?.uid === dev.userId && (
+                  <button 
+                    onClick={() => {
+                      setFormData({
+                        id: dev.id,
+                        name: dev.name,
+                        role: dev.role,
+                        location: dev.location,
+                        skills: dev.skills.join(', '),
+                        projects: dev.projects.join(', '),
+                        github: dev.github || '',
+                        linkedin: dev.linkedin || '',
+                        portfolio: dev.portfolio || ''
+                      });
+                      setShowForm(true);
+                      window.scrollTo({
+                        top: 0,
+                        behavior: 'smooth'
+                      });
+                    }}
+                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    aria-label="Edit profile"
+                  >
+                    <Pencil className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400" />
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -859,7 +851,7 @@ const Discover: React.FC = () => {
                 </div>
               </div>
 
-            <div className="mb-4">
+              <div className="mb-4">
                 <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -927,10 +919,18 @@ const Discover: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 mb-4 pt-3 border-t border-gray-200 dark:border-gray-700">
                 <Calendar className="w-3 h-3 mr-1" />
                 <span>Joined {new Date(dev.joinedDate).toLocaleDateString()}</span>
               </div>
+
+              {/* Action buttons at the bottom */}
+              {user && user.uid !== dev.userId && (
+                <div className="flex space-x-2">
+                  {getMessageButton(dev)}
+                  {getCollaborationButton(dev)}
+                </div>
+              )}
             </motion.div>
           ))}
         </div>

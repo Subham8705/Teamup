@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, Lock, Globe } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface EditProfileFormProps {
   profileData: any;
@@ -16,7 +19,17 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
   onCancel,
   loading
 }) => {
-  const { register, handleSubmit, watch } = useForm({
+  const { user } = useAuth();
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  
+  const { 
+    register, 
+    handleSubmit, 
+    watch, 
+    setError, 
+    clearErrors,
+    formState: { errors }
+  } = useForm({
     defaultValues: {
       ...profileData,
       profileVisibility: profileData?.profileVisibility || 'public'
@@ -25,24 +38,105 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
 
   const profileVisibility = watch('profileVisibility');
 
+  const checkUsernameUnique = async (username: string): Promise<boolean> => {
+    try {
+      const usersQuery = query(
+        collection(db, 'users'),
+        where('name', '==', username)
+      );
+      const snapshot = await getDocs(usersQuery);
+      
+      // If no documents found, username is unique
+      if (snapshot.empty) {
+        return true;
+      }
+      
+      // If documents found, check if any of them belong to a different user
+      const existingUserIds = snapshot.docs.map(doc => doc.id);
+      return existingUserIds.length === 1 && existingUserIds[0] === user?.uid;
+    } catch (error) {
+      console.error('Error checking username:', error);
+      return false;
+    }
+  };
+
+  const handleFormSubmit = async (data: any) => {
+    // Only check username uniqueness if the name has changed
+    if (data.name !== profileData?.name) {
+      setIsCheckingUsername(true);
+      clearErrors('name');
+      
+      try {
+        const isUsernameUnique = await checkUsernameUnique(data.name);
+        if (!isUsernameUnique) {
+          setError('name', { 
+            type: 'manual', 
+            message: 'This username is already taken. Please choose a different one.' 
+          });
+          setIsCheckingUsername(false);
+          return;
+        }
+      } catch (error) {
+        setError('name', { 
+          type: 'manual', 
+          message: 'Error checking username availability. Please try again.' 
+        });
+        setIsCheckingUsername(false);
+        return;
+      }
+      
+      setIsCheckingUsername(false);
+    }
+    
+    // If username is unique or unchanged, proceed with form submission
+    await onSubmit(data);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <motion.form 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      onSubmit={handleSubmit(onSubmit)} 
+      onSubmit={handleSubmit(handleFormSubmit)} 
       className="mt-6 space-y-4 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg transition-colors duration-300"
     >
       <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Edit Profile</h3>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+            Username (must be unique)
+          </label>
           <input 
-            {...register('name')} 
-            placeholder="Your name" 
-            className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-300" 
-            disabled={loading}
+            {...register('name', {
+              required: 'Username is required',
+              minLength: { value: 3, message: 'Username must be at least 3 characters' },
+              maxLength: { value: 20, message: 'Username must be less than 20 characters' },
+              pattern: {
+                value: /^[a-zA-Z0-9_-]+$/,
+                message: 'Username can only contain letters, numbers, underscores, and hyphens'
+              }
+            })} 
+            placeholder="Your unique username" 
+            className={`w-full p-3 rounded-lg border ${
+              errors.name 
+                ? 'border-red-500 focus:ring-red-500' 
+                : 'border-gray-300 dark:border-gray-600 focus:ring-purple-500'
+            } dark:bg-gray-900 dark:text-white focus:ring-2 focus:border-transparent transition-colors duration-300`}
+            disabled={loading || isCheckingUsername}
           />
+          {errors.name && (
+            <p className="text-sm text-red-500 mt-1">{errors.name.message}</p>
+          )}
+          {isCheckingUsername && (
+            <p className="text-sm text-blue-500 mt-1 flex items-center">
+              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              Checking username availability...
+            </p>
+          )}
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            This will be your unique identifier that others can use to find and collaborate with you.
+          </p>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Role</label>
@@ -184,19 +278,24 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
           type="button" 
           onClick={onCancel}
           className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors duration-300"
-          disabled={loading}
+          disabled={loading || isCheckingUsername}
         >
           Cancel
         </button>
         <button 
           type="submit" 
           className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 shadow-md disabled:opacity-50 flex items-center transition-colors duration-300"
-          disabled={loading}
+          disabled={loading || isCheckingUsername}
         >
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Saving...
+            </>
+          ) : isCheckingUsername ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Checking...
             </>
           ) : (
             'Save Changes'

@@ -261,7 +261,15 @@ const Profile: React.FC = () => {
             <motion.button 
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
-              onClick={handleEditButtonClick}
+              onClick={() => {
+                handleEditButtonClick();
+                setTimeout(() => {
+                  document.documentElement.scrollTo({
+                    top: document.documentElement.scrollHeight,
+                    behavior: 'smooth',
+                  });
+                }, 100); // Delay to allow UI update if needed
+              }}
               disabled={loading}
               className="mt-4 md:mt-0 bg-white text-purple-700 rounded-full px-5 py-2 flex items-center shadow-md disabled:opacity-50 transition-all duration-300"
             >
@@ -272,6 +280,7 @@ const Profile: React.FC = () => {
               )}
               {isEditing ? 'Cancel' : 'Edit Profile'}
             </motion.button>
+
           </div>
         </div>
       </motion.div>

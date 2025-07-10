@@ -1,15 +1,28 @@
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { auth } from '../../config/firebase';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  inverse?: boolean; // For routes that should only be accessible when NOT logged in
+  inverse?: boolean;
+  requireEmailVerification?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, inverse = false }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
+  children, 
+  inverse = false,
+  requireEmailVerification = true
+}) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
+  // For routes that don't require authentication
+  if (inverse) {
+    return !user ? <>{children}</> : <Navigate to="/" replace />;
+  }
+
+  // Show loading state while checking auth status
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center transition-colors duration-300">
@@ -21,18 +34,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, inverse = fal
     );
   }
 
-  // Check if user exists and email is verified (or signed in with Google)
+  // Check if user is authenticated based on requirements
   const isAuthenticated = user && (
+    !requireEmailVerification || 
     user.emailVerified || 
     user.providerData.some(provider => provider.providerId === 'google.com')
   );
-  // For inverse routes (login/register pages)
-  if (inverse) {
-    return isAuthenticated ? <Navigate to="/" /> : <>{children}</>;
+
+  if (!isAuthenticated) {
+    // Redirect to login page, saving the current location
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // For protected routes
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;
