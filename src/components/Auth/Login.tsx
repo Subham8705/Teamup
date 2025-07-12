@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
-import { Mail, Lock, Eye, EyeOff, Chrome, AlertCircle, KeyRound } from 'lucide-react';</parameter>
+import { Mail, Lock, Eye, EyeOff, Chrome, AlertCircle, KeyRound } from 'lucide-react';
 
 interface LoginForm {
   email: string;
@@ -20,14 +20,14 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>();
 
+  // Handle login
   const onSubmit = async (data: LoginForm) => {
     try {
       await login(data.email, data.password);
       toast.success('Welcome back!');
       navigate('/');
     } catch (error: any) {
-      if (error.message.includes('verify your email')) {
-        // Show a more detailed error for unverified emails
+      if (error.message && error.message.includes('verify your email')) {
         toast.error(error.message, {
           duration: 6000,
           icon: '📧',
@@ -38,13 +38,13 @@ const Login: React.FC = () => {
     }
   };
 
+  // Handle forgot password
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetEmail.trim()) {
       toast.error('Please enter your email address');
       return;
     }
-
     setIsResettingPassword(true);
     try {
       await resetPassword(resetEmail);
@@ -57,6 +57,8 @@ const Login: React.FC = () => {
       setIsResettingPassword(false);
     }
   };
+
+  // Handle Google login
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
@@ -69,6 +71,7 @@ const Login: React.FC = () => {
       setIsGoogleLoading(false);
     }
   };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-purple-900/20 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
       <div className="max-w-md w-full space-y-8">
@@ -79,7 +82,6 @@ const Login: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome Back</h2>
           <p className="mt-2 text-gray-600 dark:text-gray-300">Sign in to your account</p>
         </div>
-
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <div>
@@ -88,7 +90,7 @@ const Login: React.FC = () => {
               </label>
               <div className="mt-1 relative">
                 <input
-                  {...register('email', { 
+                  {...register('email', {
                     required: 'Email is required',
                     pattern: {
                       value: /^\S+@\S+$/i,
@@ -105,14 +107,13 @@ const Login: React.FC = () => {
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email.message}</p>
               )}
             </div>
-
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Password
               </label>
               <div className="mt-1 relative">
                 <input
-                  {...register('password', { 
+                  {...register('password', {
                     required: 'Password is required',
                     minLength: {
                       value: 6,
@@ -137,7 +138,6 @@ const Login: React.FC = () => {
               )}
             </div>
           </div>
-
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <input
@@ -150,7 +150,6 @@ const Login: React.FC = () => {
                 Remember me
               </label>
             </div>
-
             <div className="text-sm">
               <button
                 type="button"
@@ -170,7 +169,6 @@ const Login: React.FC = () => {
               {isSubmitting ? 'Signing in...' : 'Sign In'}
             </button>
           </div>
-
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -182,7 +180,6 @@ const Login: React.FC = () => {
                 </span>
               </div>
             </div>
-            {/* Email Verification Notice */}
             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
               <div className="flex items-start">
                 <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
@@ -192,7 +189,6 @@ const Login: React.FC = () => {
                 </div>
               </div>
             </div>
-
             <div className="mt-6">
               <button
                 type="button"
@@ -224,7 +220,6 @@ const Login: React.FC = () => {
           </div>
         </form>
       </div>
-
       {/* Forgot Password Modal */}
       {showForgotPassword && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -248,11 +243,9 @@ const Login: React.FC = () => {
                 </svg>
               </button>
             </div>
-
             <p className="text-gray-600 dark:text-gray-300 mb-4">
               Enter your email address and we'll send you a link to reset your password.
             </p>
-
             <form onSubmit={handleForgotPassword}>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -270,7 +263,6 @@ const Login: React.FC = () => {
                   <Mail className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
                 </div>
               </div>
-
               <div className="flex space-x-3">
                 <button
                   type="button"
@@ -298,7 +290,6 @@ const Login: React.FC = () => {
                 </button>
               </div>
             </form>
-
             <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
               <div className="flex items-start">
                 <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
