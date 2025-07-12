@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
-import { Mail, Lock, Eye, EyeOff, Chrome, AlertCircle, KeyRound } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Chrome, AlertCircle, KeyRound, LogOut } from 'lucide-react';
 
 interface LoginForm {
   email: string;
@@ -16,9 +16,19 @@ const Login: React.FC = () => {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-  const { login, loginWithGoogle, resetPassword } = useAuth();
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // New state for tracking login status
+  const { login, loginWithGoogle, resetPassword, currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    if (currentUser) {
+      setIsLoggedIn(true);
+    } else {
+      setIsLoggedIn(false);
+    }
+  }, [currentUser]);
 
   // Handle login
   const onSubmit = async (data: LoginForm) => {
@@ -35,6 +45,17 @@ const Login: React.FC = () => {
       } else {
         toast.error(error.message || 'Login failed');
       }
+    }
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setIsLoggedIn(false);
+      toast.success('You have been logged out. Please log in again.');
+    } catch (error: any) {
+      toast.error(error.message || 'Logout failed');
     }
   };
 
@@ -72,6 +93,42 @@ const Login: React.FC = () => {
     }
   };
 
+  // If user is already logged in, show message and logout option
+  if (isLoggedIn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-purple-900/20 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 space-y-6">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">You're already logged in</h2>
+            <p className="mt-2 text-gray-600 dark:text-gray-300">
+              Experiencing issues? Please log out and log in again.
+            </p>
+          </div>
+          <div className="mt-6">
+            <button
+              onClick={handleLogout}
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-300 flex items-center justify-center"
+            >
+              <LogOut className="w-5 h-5 mr-2" />
+              Log Out Now
+            </button>
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Or{' '}
+              <Link to="/" className="font-medium text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300">
+                return to home page
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-gray-900 dark:to-purple-900/20 py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
       <div className="max-w-md w-full space-y-8">
@@ -81,6 +138,7 @@ const Login: React.FC = () => {
           </div>
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome Back</h2>
           <p className="mt-2 text-gray-600 dark:text-gray-300">Sign in to your account</p>
+          {/* <p className="mt-2 text-gray-600 dark:text-gray-300">error while logging in ? try reloading</p> */}
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
@@ -186,6 +244,8 @@ const Login: React.FC = () => {
                 <div className="text-xs text-blue-800 dark:text-blue-200">
                   <p className="font-medium mb-1">New to TeamUp?</p>
                   <p>After registering with email, you'll need to verify your email address before you can sign in.</p>
+                  <br></br>
+                  <p>Experiencing issues? A quick logout and login might help resolve them.</p>
                 </div>
               </div>
             </div>

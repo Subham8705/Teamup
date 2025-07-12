@@ -7,10 +7,21 @@ import {
 import ThemeToggle from './ThemeToggle';
 
 const Navbar: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout ,userProfile,loading} = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-
+  if (loading || (user && !userProfile)) {
+    return (
+      <div className="bg-white dark:bg-gray-900 h-16 border-b border-gray-200 dark:border-gray-800 w-full sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
+          <div className="w-32 h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="flex space-x-4">
+            <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
   const isActive = (path: string) => location.pathname === path;
 
   // Navigation items for non-authenticated users
@@ -39,11 +50,9 @@ const Navbar: React.FC = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
-            <img
-              src="https://res.cloudinary.com/dpa0sb1tm/image/upload/c_crop,w_250,h_250,g_auto/v1752298829/logo_uo8iah.png"
-              alt="TeamUp Logo"
-              className="w-9 h-9 rounded-lg object-cover"
-            />
+            <div className="w-9 h-9 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
+              <Users className="w-5 h-5 text-white" />
+            </div>
             <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
               TeamUp
             </span>

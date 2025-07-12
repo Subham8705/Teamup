@@ -36,3 +36,4 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, inverse = fal
 };
 
 export default ProtectedRoute;
+

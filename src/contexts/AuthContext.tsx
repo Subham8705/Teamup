@@ -8,7 +8,6 @@ import {
   signOut, 
   onAuthStateChanged,
   sendEmailVerification,
-  sendPasswordResetEmail,
   reload
 } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
@@ -21,7 +20,6 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   register: (email: string, password: string, userData: any) => Promise<void>;
   resendVerification: () => Promise<void>;
-  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
   emailVerificationSent: boolean;
@@ -50,24 +48,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     prompt: 'select_account'
   });
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    setLoading(true);
+    try {
       if (user) {
-        // Only load profile if email is verified or user signed in with Google
-        if (user.emailVerified || user.providerData.some(provider => provider.providerId === 'google.com')) {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          setUserProfile(userDoc.data());
-        } else {
-          setUserProfile(null);
-        }
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        setUser(user);
+        setUserProfile(userDoc.data() || null);
       } else {
+        setUser(null);
         setUserProfile(null);
       }
+    } catch (error) {
+      console.error("Auth state error:", error);
+    } finally {
       setLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
+    }
+  });
+  return unsubscribe;
+}, []);
 
   const register = async (email: string, password: string, userData: any) => {
     try {
@@ -95,21 +94,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, password: string) => {
+  setLoading(true);
+  try {
     const { user } = await signInWithEmailAndPassword(auth, email, password);
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
     
-    // Check if email is verified
+    // Atomic update
+    setUser(user);
+    setUserProfile(userDoc.data());
+    
     if (!user.emailVerified) {
-      await signOut(auth); // Sign out unverified user
-      throw new Error('Please verify your email before signing in. Check your inbox for the verification link.');
+      await logout();
+      throw new Error('Please verify your email before signing in');
     }
-    
-    // Update email verification status in database
-    const userRef = doc(db, 'users', user.uid);
-    await updateDoc(userRef, {
-      emailVerified: true,
-      lastLoginAt: new Date().toISOString()
-    });
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   const loginWithGoogle = async () => {
     try {
@@ -189,19 +190,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setEmailVerificationSent(true);
   };
 
-  const resetPassword = async (email: string) => {
-    try {
-      await sendPasswordResetEmail(auth, email);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
-        throw new Error('No account found with this email address');
-      } else if (error.code === 'auth/invalid-email') {
-        throw new Error('Invalid email address');
-      } else {
-        throw new Error('Failed to send password reset email. Please try again.');
-      }
-    }
-  };
   const logout = async () => {
     setEmailVerificationSent(false);
     await signOut(auth);
@@ -221,7 +209,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loginWithGoogle,
     register,
     resendVerification,
-    resetPassword,
     logout,
     loading,
     emailVerificationSent,
@@ -231,4 +218,3 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
