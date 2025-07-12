@@ -5,7 +5,8 @@ import {
   Users, 
   Clock, 
   User,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import {
   collection,
@@ -16,7 +17,8 @@ import {
   getDoc,
   onSnapshot,
   orderBy,
-  limit
+  limit,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useChatContext } from '../../contexts/ChatContext';
@@ -81,6 +83,21 @@ const UserList: React.FC = () => {
       setLoading(false);
     }
   }, [search]);
+
+  const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
+  e.stopPropagation(); // Prevent triggering the chat selection
+  try {
+    // Add your Firestore delete logic here
+    await deleteDoc(doc(db, 'chats', chatId));
+    toast.success('Chat deleted successfully');
+    // Optionally refresh the chat list
+    loadRecentChats();
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    toast.error('Failed to delete chat');
+  }
+};
+
 
   const loadCollaborators = async () => {
     if (!currentUser) return;
@@ -377,7 +394,7 @@ const UserList: React.FC = () => {
                 <div
                   key={chat.id}
                   onClick={() => handleChatClick(chat)}
-                  className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                  className={`group relative flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
                     selectedChat === chat.id
                       ? 'bg-purple-100 dark:bg-purple-900/30'
                       : 'hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -423,6 +440,13 @@ const UserList: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  <button
+                    onClick={(e) => handleDeleteChat(chat.id, e)}
+                    className="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
+                    title="Delete chat"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               ))
             )}
