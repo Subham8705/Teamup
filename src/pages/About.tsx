@@ -176,12 +176,14 @@ const About: React.FC = () => {
                   <div className="flex space-x-4">
                     <a
                       href={founder.github}
+                      target='blank'
                       className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                     >
                       <Github className="w-5 h-5" />
                     </a>
                     <a
                       href={founder.linkedin}
+                      target='blank'
                       className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                     >
                       <Linkedin className="w-5 h-5" />
