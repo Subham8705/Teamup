@@ -222,14 +222,13 @@ const About: React.FC = () => {
               find like-minded collaborators, and build something amazing together.
             </p>
 
-            <p className="text-lg leading-relaxed mb-6">
+            {/* <p className="text-lg leading-relaxed mb-6">
               What started as a side project has grown into a thriving community of over 10,000 creators worldwide. 
               We've seen incredible projects come to life, from AI applications solving real-world problems to 
               innovative mobile apps that have reached thousands of users.
-            </p>
+            </p> */}
 
             <p className="text-lg leading-relaxed">
-              Today, TeamUp continues to evolve based on feedback from our amazing community. 
               We're constantly adding new features and improving the platform to make collaboration even easier and more effective.
             </p>
           </div>
