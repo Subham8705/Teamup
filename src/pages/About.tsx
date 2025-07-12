@@ -23,7 +23,7 @@ const About: React.FC = () => {
       image: 'https://res.cloudinary.com/dfc8a9imb/image/upload/c_crop,w_490,h_180,g_auto/v1752079340/nikhil_photooo-removebg-preview_sa2jsb.png',
       github: 'https://github.com/Nikhil-p570',
       linkedin: 'https://www.linkedin.com/in/nikhil-pabbisetti/',
-      email: 'nikhil.pabbisetti2006@gmail.com'
+      email: 'https://pnikhil-portfolio.vercel.app/'
     },
     {
       name: 'Subham Kumar Shee',
@@ -32,7 +32,7 @@ const About: React.FC = () => {
       image: 'https://res.cloudinary.com/dpa0sb1tm/image/upload/c_crop,w_490,h_180,g_auto/v1743426464/A-20250216-WA0006_-_Subham_kumar_fhw4hr.jpg',
       github: 'https://github.com/Subham8705/Teamup',
       linkedin: 'https://www.linkedin.com/in/subham-kumar-shee-221886328/',
-      email: 'subhamkumarshee@gmail.com '
+      email: 'https://subham-kumar-shee.vercel.app/'
     }
   ];
 
@@ -193,10 +193,10 @@ const About: React.FC = () => {
                       <Linkedin className="w-5 h-5" />
                     </a>
                     <a
-                      href={`mailto:${founder.email}`}
+                      href={founder.email}
                       className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                     >
-                      <Mail className="w-5 h-5" />
+                      <Globe className="w-5 h-5" />
                     </a>
                   </div>
                 </div>
