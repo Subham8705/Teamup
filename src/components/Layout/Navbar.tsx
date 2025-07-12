@@ -1,28 +1,17 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
   Home, Lightbulb, Users, Trophy, MessageCircle, User, LogOut, Info, Menu, X, Search
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
-import { auth } from '../../config/firebase';
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   const isActive = (path: string) => location.pathname === path;
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Failed to logout', error);
-    }
-  };
 
   // Navigation items for non-authenticated users
   const publicNavItems = [
@@ -90,7 +79,7 @@ const Navbar: React.FC = () => {
                 </Link>
                 
                 <button
-                  onClick={handleLogout}
+                  onClick={logout}
                   className="flex items-center space-x-1.5 px-3 py-2 rounded-md text-sm hover:bg-red-50/50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition-colors"
                 >
                   <LogOut className="w-4 h-4" />
@@ -162,7 +151,7 @@ const Navbar: React.FC = () => {
                     </Link>
                     <button
                       onClick={() => {
-                        handleLogout();
+                        logout();
                         setIsMobileMenuOpen(false);
                       }}
                       className="flex items-center space-x-2 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-900/30 w-full text-left"

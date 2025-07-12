@@ -25,7 +25,6 @@ interface AuthContextType {
   emailVerificationSent: boolean;
   setEmailVerificationSent: (sent: boolean) => void;
   updateProfileData: (updates: any) => Promise<void>;
-  isAuthenticated: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,35 +47,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   googleProvider.setCustomParameters({
     prompt: 'select_account'
   });
-
-  // New helper function to check authentication status
-  const isAuthenticated = () => {
-    return !!user && (!!user.emailVerified || user.providerData.some(provider => provider.providerId === 'google.com'));
-  };
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        
-        // Check if user is verified (either through email or Google)
-        if (firebaseUser.emailVerified || firebaseUser.providerData.some(provider => provider.providerId === 'google.com')) {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-            if (userDoc.exists()) {
-              setUserProfile(userDoc.data());
-            } else {
-              // Handle case where user exists in auth but not in Firestore
-              await createDefaultUserProfile(firebaseUser);
-            }
-          } catch (error) {
-            console.error("Error loading user profile:", error);
-          }
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setUser(user);
+      if (user) {
+        // Only load profile if email is verified or user signed in with Google
+        if (user.emailVerified || user.providerData.some(provider => provider.providerId === 'google.com')) {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          setUserProfile(userDoc.data());
         } else {
           setUserProfile(null);
         }
       } else {
-        setUser(null);
         setUserProfile(null);
       }
       setLoading(false);
@@ -85,54 +67,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
-  const createDefaultUserProfile = async (firebaseUser: User) => {
-    const displayName = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User';
-    let uniqueName = displayName;
-    let counter = 1;
-    
-    // Ensure unique username
-    while (true) {
-      const nameQuery = query(
-        collection(db, 'users'),
-        where('name', '==', uniqueName)
-      );
-      const nameSnapshot = await getDocs(nameQuery);
-      
-      if (nameSnapshot.empty) break;
-      
-      uniqueName = `${displayName}${counter}`;
-      counter++;
-    }
-    
-    const newProfile = {
-      name: uniqueName,
-      email: firebaseUser.email,
-      role: 'Developer',
-      skills: '',
-      about: '',
-      github: '',
-      linkedin: '',
-      website: '',
-      profileImage: firebaseUser.photoURL || '',
-      projects: [],
-      profileVisibility: 'public',
-      emailVerified: firebaseUser.emailVerified || firebaseUser.providerData.some(p => p.providerId === 'google.com'),
-      createdAt: new Date().toISOString(),
-      authProvider: firebaseUser.providerData[0]?.providerId || 'email'
-    };
-    
-    await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-    setUserProfile(newProfile);
-  };
-
   const register = async (email: string, password: string, userData: any) => {
-    setLoading(true);
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       
+      // Send email verification
       await sendEmailVerification(user);
       setEmailVerificationSent(true);
       
+      // Create user profile (but they won't be able to access it until verified)
       await setDoc(doc(db, 'users', user.uid), {
         ...userData,
         email,
@@ -140,62 +83,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createdAt: new Date().toISOString(),
       });
       
-      throw new Error('VERIFICATION_SENT');
+      throw new Error('VERIFICATION_SENT'); // Special error to handle in UI
     } catch (error: any) {
-      setLoading(false);
       if (error.message === 'VERIFICATION_SENT') {
-        throw error;
+        throw error; // Re-throw our custom error
       }
-      throw error;
-    } finally {
-      setLoading(false);
+      throw error; // Re-throw Firebase errors
     }
   };
 
   const login = async (email: string, password: string) => {
-    setLoading(true);
-    try {
-      const { user } = await signInWithEmailAndPassword(auth, email, password);
-      
-      if (!user.emailVerified) {
-        await signOut(auth);
-        throw new Error('Please verify your email before signing in. Check your inbox for the verification link.');
-      }
-      
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        emailVerified: true,
-        lastLoginAt: new Date().toISOString()
-      });
-      
-      // Reload user data
-      const userDoc = await getDoc(userRef);
-      if (userDoc.exists()) {
-        setUserProfile(userDoc.data());
-      }
-    } catch (error) {
-      setLoading(false);
-      throw error;
-    } finally {
-      setLoading(false);
+    const { user } = await signInWithEmailAndPassword(auth, email, password);
+    
+    // Check if email is verified
+    if (!user.emailVerified) {
+      await signOut(auth); // Sign out unverified user
+      throw new Error('Please verify your email before signing in. Check your inbox for the verification link.');
     }
+    
+    // Update email verification status in database
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, {
+      emailVerified: true,
+      lastLoginAt: new Date().toISOString()
+    });
   };
 
   const loginWithGoogle = async () => {
-    setLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
+      // Check if user profile exists
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
       if (!userDoc.exists()) {
-        await createDefaultUserProfile(user);
-      } else {
-        setUserProfile(userDoc.data());
+        // Check if username already exists
+        const displayName = user.displayName || user.email?.split('@')[0] || 'User';
+        let uniqueName = displayName;
+        let counter = 1;
+        
+        // Ensure unique username
+        while (true) {
+          const nameQuery = query(
+            collection(db, 'users'),
+            where('name', '==', uniqueName)
+          );
+          const nameSnapshot = await getDocs(nameQuery);
+          
+          if (nameSnapshot.empty) {
+            break;
+          }
+          
+          uniqueName = `${displayName}${counter}`;
+          counter++;
+        }
+        
+        // Create new user profile
+        await setDoc(doc(db, 'users', user.uid), {
+          name: uniqueName,
+          email: user.email,
+          role: 'Developer',
+          skills: '',
+          about: '',
+          github: '',
+          linkedin: '',
+          website: '',
+          profileImage: user.photoURL || '',
+          projects: [],
+          profileVisibility: 'public',
+          emailVerified: true, // Google users are automatically verified
+          createdAt: new Date().toISOString(),
+          authProvider: 'google'
+        });
       }
     } catch (error: any) {
-      setLoading(false);
+      // Handle specific Google Sign-In errors
       if (error.code === 'auth/popup-closed-by-user') {
         throw new Error('Sign-in was cancelled');
       } else if (error.code === 'auth/popup-blocked') {
@@ -205,8 +168,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         throw new Error(error.message || 'Failed to sign in with Google');
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -215,6 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('No user logged in');
     }
     
+    // Reload user to get latest verification status
     await reload(user);
     
     if (user.emailVerified) {
@@ -226,26 +188,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    try {
-      setLoading(true);
-      setEmailVerificationSent(false);
-      await signOut(auth);
-    } finally {
-      setLoading(false);
-    }
+    setEmailVerificationSent(false);
+    await signOut(auth);
   };
 
   const updateProfileData = async (updates: any) => {
     if (!user) return;
-    
-    try {
-      setLoading(true);
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, updates);
-      setUserProfile((prev: any) => ({ ...prev, ...updates }));
-    } finally {
-      setLoading(false);
-    }
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, updates);
+    setUserProfile((prev: any) => ({ ...prev, ...updates }));
   };
 
   const value = {
@@ -260,8 +211,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     emailVerificationSent,
     setEmailVerificationSent,
     updateProfileData,
-    isAuthenticated // Add the new helper function
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
