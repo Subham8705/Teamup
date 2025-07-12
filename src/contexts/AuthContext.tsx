@@ -8,6 +8,7 @@ import {
   signOut, 
   onAuthStateChanged,
   sendEmailVerification,
+  sendPasswordResetEmail,
   reload
 } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
@@ -20,6 +21,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   register: (email: string, password: string, userData: any) => Promise<void>;
   resendVerification: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
   emailVerificationSent: boolean;
@@ -187,6 +189,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setEmailVerificationSent(true);
   };
 
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('No account found with this email address');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('Invalid email address');
+      } else {
+        throw new Error('Failed to send password reset email. Please try again.');
+      }
+    }
+  };
   const logout = async () => {
     setEmailVerificationSent(false);
     await signOut(auth);
@@ -206,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loginWithGoogle,
     register,
     resendVerification,
+    resetPassword,
     logout,
     loading,
     emailVerificationSent,
