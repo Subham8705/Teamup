@@ -19,7 +19,7 @@ const About: React.FC = () => {
     {
       name: 'Nikhil Pabbisetti',
       role: 'Founder',
-      bio: 'Full-stack developer with 1+ years experience. Passionate about building platforms that connect creative minds.',
+      bio: '',
       image: 'https://res.cloudinary.com/dfc8a9imb/image/upload/c_crop,w_490,h_180,g_auto/v1752079340/nikhil_photooo-removebg-preview_sa2jsb.png',
       github: 'https://github.com/Nikhil-p570',
       linkedin: 'https://www.linkedin.com/in/nikhil-pabbisetti/',
@@ -28,7 +28,7 @@ const About: React.FC = () => {
     {
       name: 'Subham Kumar Shee',
       role: 'Co-Founder',
-      bio: 'AI/ML engineer and former Google software engineer. Believes in the power of collaboration to solve complex problems.',
+      bio: '',
       image: 'https://res.cloudinary.com/dpa0sb1tm/image/upload/c_crop,w_490,h_180,g_auto/v1743426464/A-20250216-WA0006_-_Subham_kumar_fhw4hr.jpg',
       github: 'https://github.com/Subham8705/Teamup',
       linkedin: 'https://www.linkedin.com/in/subham-kumar-shee-221886328/',
