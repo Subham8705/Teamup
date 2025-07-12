@@ -151,9 +151,9 @@ const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onUpdate }) => {
     <>
       <motion.div
         whileHover={{ y: -5 }}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 dark:border-gray-700 overflow-hidden h-[100%] flex flex-col justify-between"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 dark:border-gray-700 overflow-hidden h-full flex flex-col"
       >
-        <div className="p-6">
+        <div className="p-6 flex flex-col flex-grow">
           <div className="flex items-start justify-between mb-4">
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStageColor(idea.stage)}`}>
               {idea.stage}
@@ -192,68 +192,74 @@ const IdeaCard: React.FC<IdeaCardProps> = ({ idea, onUpdate }) => {
             {idea.title}
           </h3>
 
-          <p className="text-gray-600 dark:text-gray-300 mb-4 line-clamp-3">
+          <p className="text-gray-600 dark:text-gray-300 mb-4 line-clamp-3 flex-grow">
             {idea.description}
           </p>
 
-          <div className="flex flex-wrap gap-2 mb-4">
-            {idea.tags.map((tag: string) => (
-              <span
-                key={tag}
-                className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-4">
-            <div className="flex items-center">
-              <User className="w-4 h-4 mr-1" />
-              <span>{idea.authorName}</span>
+          {idea.tags?.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {idea.tags.map((tag: string) => (
+                <span
+                  key={tag}
+                  className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium"
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
-            <div className="flex items-center">
-              <Calendar className="w-4 h-4 mr-1" />
-              <span>{new Date(idea.createdAt).toLocaleDateString()}</span>
-            </div>
-          </div>
+          )}
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+          {/* Footer content - pushed to bottom */}
+          <div className="mt-auto">
+            <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-3">
               <div className="flex items-center">
-                <Heart className="w-4 h-4 mr-1" />
-                <span>{likesCount} {likesCount === 1 ? 'like' : 'likes'}</span>
+                <User className="w-4 h-4 mr-1" />
+                <span className="truncate max-w-[120px]">{idea.authorName}</span>
               </div>
-              <button
-                onClick={() => setShowComments(true)}
-                className="flex items-center hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-              >
-                <MessageCircle className="w-4 h-4 mr-1" />
-                <span>{commentsCount} {commentsCount === 1 ? 'comment' : 'comments'}</span>
-              </button>
+              <div className="flex items-center">
+                <Calendar className="w-4 h-4 mr-1" />
+                <span>{new Date(idea.createdAt).toLocaleDateString()}</span>
+              </div>
             </div>
-            {!isAuthor ? (
-              <button
-                onClick={handleJoinTeam}
-                disabled={isJoining}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-              >
-                {isJoining ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Sending...
-                  </>
-                ) : (
-                  'Join Team'
-                )}
-              </button>
-            ) : (
-              <span className="text-sm text-gray-500 dark:text-gray-400 italic">Your idea</span>
-            )}
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex items-center">
+                  <Heart className="w-4 h-4 mr-1" />
+                  <span>{likesCount} {likesCount === 1 ? 'like' : 'likes'}</span>
+                </div>
+                <button
+                  onClick={() => setShowComments(true)}
+                  className="flex items-center hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4 mr-1" />
+                  <span>{commentsCount} {commentsCount === 1 ? 'comment' : 'comments'}</span>
+                </button>
+              </div>
+              {!isAuthor ? (
+                <button
+                  onClick={handleJoinTeam}
+                  disabled={isJoining}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  {isJoining ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Sending...
+                    </>
+                  ) : (
+                    'Join Team'
+                  )}
+                </button>
+              ) : (
+                <span className="text-sm text-gray-500 dark:text-gray-400 italic">Your idea</span>
+              )}
+            </div>
           </div>
         </div>
       </motion.div>
 
+      {/* Modals remain unchanged */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div
