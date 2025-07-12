@@ -59,12 +59,6 @@ const About: React.FC = () => {
     }
   ];
 
-  const stats = [
-    { number: '10,000+', label: 'Active Users' },
-    { number: '2,500+', label: 'Projects Created' },
-    { number: '500+', label: 'Hackathons Won' },
-    { number: '50+', label: 'Countries Reached' }
-  ];
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300">
@@ -194,6 +188,7 @@ const About: React.FC = () => {
                     </a>
                     <a
                       href={founder.email}
+                      target='blank'
                       className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                     >
                       <Globe className="w-5 h-5" />

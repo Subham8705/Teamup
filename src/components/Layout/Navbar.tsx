@@ -50,9 +50,11 @@ const Navbar: React.FC = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
-            <div className="w-9 h-9 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-white" />
-            </div>
+            <img 
+      src="https://res.cloudinary.com/dpa0sb1tm/image/upload/c_crop,w_250,h_250,g_auto/v1752298829/logo_uo8iah.png" 
+      alt="TeamUp Logo"
+      className="w-9 h-9 rounded-lg object-cover"
+    />
             <span className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
               TeamUp
             </span>

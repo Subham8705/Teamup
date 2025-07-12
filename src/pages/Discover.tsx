@@ -784,8 +784,7 @@ const Discover: React.FC = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: index * 0.1 }}
-              className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-            >
+              className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col h-full"            >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">{dev.name}</h2>
@@ -926,9 +925,11 @@ const Discover: React.FC = () => {
 
               {/* Action buttons at the bottom */}
               {user && user.uid !== dev.userId && (
-                <div className="flex space-x-2">
-                  {getMessageButton(dev)}
-                  {getCollaborationButton(dev)}
+                <div className="mt-auto pt-4"> {/* Added mt-auto and padding */}
+                  <div className="flex space-x-2">
+                    {getMessageButton(dev)}
+                    {getCollaborationButton(dev)}
+                  </div>
                 </div>
               )}
             </motion.div>
